@@ -16,51 +16,101 @@
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { background: var(--bg); color: var(--ink); font-family: var(--sans); font-size: 12px; padding: 12px; }
     h1 { font-size: 14px; font-weight: 800; margin-bottom: 4px; }
-    .sub { color: var(--muted); font-size: 11px; margin-bottom: 12px; }
+    .sub { color: var(--muted); font-size: 11px; margin-bottom: 10px; }
+    .panel {
+      background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+      padding: 9px; margin-bottom: 10px;
+    }
     .row { display: flex; gap: 8px; margin-bottom: 8px; }
+    .row:last-child { margin-bottom: 0; }
     label { display: block; font-size: 10px; font-family: var(--mono); color: var(--muted); margin-bottom: 3px; text-transform: uppercase; }
     input, select {
       width: 100%; padding: 6px 8px; border: 1px solid var(--border); border-radius: 6px;
       background: var(--surface); font-size: 12px; color: var(--ink);
     }
+    input[type="file"] { padding: 4px; font-size: 11px; }
+    .hint { font-size: 10px; color: var(--muted); margin-top: 3px; }
     .btn {
-      width: 100%; padding: 9px 12px; border-radius: 7px; font-weight: 700; font-size: 12px;
+      width: 100%; padding: 8px 10px; border-radius: 7px; font-weight: 700; font-size: 11.5px;
       border: 1px solid transparent; cursor: pointer;
     }
     .btn-primary { background: var(--brand); color: #fff; }
-    .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-primary:disabled, .btn-outline:disabled { opacity: 0.5; cursor: not-allowed; }
     .btn-outline { background: var(--surface); color: var(--ink); border-color: var(--border); }
+    .btn-active { background: #ccfbf1; color: #115e59; border-color: #0f766e; }
     .preflight { border-radius: 8px; padding: 10px; margin: 10px 0; font-size: 11px; }
     .pf-pass { background: var(--pass-bg); color: var(--pass-ink); }
     .pf-fail { background: var(--fail-bg); color: var(--fail-ink); }
+    .pf-list { margin: 5px 0 0 15px; }
+    .pf-warn { margin-top: 6px; padding-top: 6px; border-top: 1px solid rgba(20, 83, 45, 0.2); color: var(--warn-ink); }
+    .frame-hdr { font-family: var(--mono); font-size: 10px; color: var(--muted); margin: 10px 0 5px; text-transform: uppercase; }
     .node-card {
       background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
       padding: 8px; margin-bottom: 8px;
     }
-    .node-head { display: flex; justify-content: space-between; align-items: center; gap: 6px; margin-bottom: 6px; }
+    .node-head { display: flex; justify-content: space-between; align-items: center; gap: 6px; margin-bottom: 4px; }
     .node-name { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .mini-btn { padding: 2px 6px; font-size: 11px; border: 1px solid var(--border); border-radius: 4px; background: var(--bg); cursor: pointer; }
-    #status { margin-top: 8px; font-family: var(--mono); font-size: 11px; color: var(--muted); }
+    .node-meta { font-family: var(--mono); font-size: 10px; color: var(--muted); margin-bottom: 6px; }
+    .mini-btn { padding: 2px 6px; font-size: 11px; border: 1px solid var(--border); border-radius: 4px; background: var(--bg); cursor: pointer; color: var(--ink); }
+    .font-chip {
+      display: flex; justify-content: space-between; align-items: center; gap: 6px;
+      font-family: var(--mono); font-size: 10px; background: var(--bg); border: 1px solid var(--border);
+      border-radius: 5px; padding: 3px 6px; margin-top: 4px;
+    }
+    #status { margin-top: 8px; font-family: var(--mono); font-size: 11px; color: var(--muted); word-break: break-word; }
   </style>
 </head>
 <body>
   <h1>TagFrame PDF/UA</h1>
-  <div class="sub">Persistent ISO 14289-1 tags stored in your <code>.fig</code> file.</div>
+  <div class="sub">Persistent ISO 14289-1 tags stored in your <code>.fig</code> file. Zero server retention.</div>
 
-  <div class="row">
-    <div style="flex:2;">
-      <label for="doc-title">Document Title</label>
-      <input id="doc-title" type="text" value="" />
+  <div class="panel">
+    <div class="row">
+      <div style="flex:2;">
+        <label for="doc-title">Document Title</label>
+        <input id="doc-title" type="text" value="" />
+      </div>
+      <div style="flex:1;">
+        <label for="doc-lang">/Lang</label>
+        <input id="doc-lang" type="text" value="en-US" />
+      </div>
     </div>
-    <div style="flex:1;">
-      <label for="doc-lang">/Lang</label>
-      <input id="doc-lang" type="text" value="en-US" />
+
+    <div class="row">
+      <div style="flex:1;">
+        <label for="layout-mode">Layout Mode</label>
+        <select id="layout-mode">
+          <option value="positioned" selected>Positioned (Exact Figma Coordinates)</option>
+          <option value="flow">Flow (Accessible Reflow)</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="row">
+      <div style="flex:1;">
+        <label for="api-base-url">Compiler API URL</label>
+        <input id="api-base-url" type="url" value="http://127.0.0.1:8000" placeholder="http://127.0.0.1:8000 or https://compiler.example.com" />
+        <div class="hint">Persisted locally via Figma clientStorage. Localhost or HTTPS endpoints only.</div>
+      </div>
+    </div>
+
+    <div class="row">
+      <div style="flex:1;">
+        <label for="custom-fonts-input">Custom Brand Fonts (In-RAM Only)</label>
+        <input id="custom-fonts-input" type="file" accept=".ttf,.otf" multiple />
+        <div class="hint">Transient in browser RAM (max 5 .ttf/.otf files, 5 MB each). Sent only on export.</div>
+        <div id="custom-fonts-list"></div>
+      </div>
     </div>
   </div>
 
   <div class="row">
     <button id="rescan-btn" class="btn btn-outline" style="flex:1;">Re-scan Selection</button>
-    <button id="export-btn" class="btn btn-primary" style="flex:1.6;">Export PDF/UA-1</button>
+    <button id="overlay-btn" class="btn btn-outline" style="flex:1.2;">Toggle Reading Order Overlay</button>
+  </div>
+  <div class="row">
+    <button id="download-json-btn" class="btn btn-outline" style="flex:1.1;">Download Scene JSON (Offline)</button>
+    <button id="export-btn" class="btn btn-primary" style="flex:1.2;">Export PDF/UA-1</button>
   </div>
 
   <div id="preflight-box" class="preflight pf-pass">Scanning selected frames...</div>
@@ -68,121 +118,509 @@
   <div id="status"></div>
 
   <script>
-    const API_BASE_URL = "https://tagframe-pdfua-production.up.railway.app";
-    const ROLES = ["H1","H2","H3","H4","H5","H6","P","List","Link","Table","Figure","Artifact"];
+    const DEFAULT_API_BASE_URL = "http://127.0.0.1:8000";
+    const ROLES = ["H1", "H2", "H3", "H4", "H5", "H6", "P", "List", "Link", "Table", "Figure", "Artifact"];
+    const MAX_CUSTOM_FONTS = 5;
+    const MAX_CUSTOM_FONT_BYTES = 5 * 1024 * 1024;
+    const BASE64_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+
     let latestScene = null;
     let latestPreflight = null;
+    let loadedFonts = [];
+    let isExportBusy = false;
 
-    function post(msg) { parent.postMessage({ pluginMessage: msg }, "*"); }
+    function post(msg) {
+      parent.postMessage({ pluginMessage: msg }, "*");
+    }
 
-    function render(scene, preflight) {
+    function escapeHtml(value) {
+      return String(value ?? "").replace(/[&<>"'`]/g, (ch) => {
+        switch (ch) {
+          case "&": return "&amp;";
+          case "<": return "&lt;";
+          case ">": return "&gt;";
+          case '"': return "&quot;";
+          case "'": return "&#39;";
+          case "`": return "&#96;";
+          default: return ch;
+        }
+      });
+    }
+
+    function normalizeApiBaseUrl(rawUrl) {
+      const trimmed = String(rawUrl ?? "").trim().replace(/\/+$/, "");
+      if (!trimmed) return { ok: true, url: DEFAULT_API_BASE_URL };
+      if (/[\s"'<>]/.test(trimmed)) {
+        return { ok: false, error: "Compiler API URL must not contain whitespace or HTML characters." };
+      }
+      const httpsRe = /^https:\/\/[a-zA-Z0-9.-]+(?::\d{1,5})?(?:\/[a-zA-Z0-9._~:/?#[\]@!$&'()*+,;=-]*)?$/;
+      const localHttpRe = /^http:\/\/(?:127\.0\.0\.1|localhost)(?::\d{1,5})?(?:\/[a-zA-Z0-9._~:/?#[\]@!$&'()*+,;=-]*)?$/;
+      if (httpsRe.test(trimmed) || localHttpRe.test(trimmed)) {
+        if (trimmed.includes("@")) {
+          return { ok: false, error: "Compiler API URL must not include embedded credentials." };
+        }
+        return { ok: true, url: trimmed };
+      }
+      return {
+        ok: false,
+        error: "Compiler API URL must use https:// (or http://127.0.0.1 / http://localhost).",
+      };
+    }
+
+    function sanitizeCustomFontFilename(rawName) {
+      const base = String(rawName ?? "").replace(/\\/g, "/").split("/").pop() || "";
+      const match = base.match(/^(.*)\.(ttf|otf)$/i);
+      if (!match) return null;
+      const rawStem = match[1].replace(/[^A-Za-z0-9._-]+/g, "_").replace(/\.{2,}/g, "_").replace(/^[._-]+/, "");
+      const stem = rawStem || "custom_font";
+      const ext = match[2].toLowerCase();
+      const safe = `${stem}.${ext}`;
+      if (!/^[A-Za-z0-9._-]+\.(ttf|otf)$/.test(safe) || safe.includes("..")) return null;
+      return safe;
+    }
+
+    function uint8ArrayToBase64(bytes) {
+      const arr = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes || 0);
+      const len = arr.length;
+      if (len === 0) return "";
+      const chunks = [];
+      const step = 4096 * 3;
+      for (let offset = 0; offset < len; offset += step) {
+        const end = Math.min(len, offset + step);
+        let out = "";
+        let i = offset;
+        for (; i + 2 < end; i += 3) {
+          const triple = (arr[i] << 16) | (arr[i + 1] << 8) | arr[i + 2];
+          out +=
+            BASE64_ALPHABET[(triple >> 18) & 63] +
+            BASE64_ALPHABET[(triple >> 12) & 63] +
+            BASE64_ALPHABET[(triple >> 6) & 63] +
+            BASE64_ALPHABET[triple & 63];
+        }
+        const rem = end - i;
+        if (rem === 1) {
+          const b0 = arr[i];
+          out += BASE64_ALPHABET[(b0 >> 2) & 63] + BASE64_ALPHABET[(b0 << 4) & 63] + "==";
+        } else if (rem === 2) {
+          const pair = (arr[i] << 8) | arr[i + 1];
+          out +=
+            BASE64_ALPHABET[(pair >> 10) & 63] +
+            BASE64_ALPHABET[(pair >> 4) & 63] +
+            BASE64_ALPHABET[(pair << 2) & 63] +
+            "=";
+        }
+        chunks.push(out);
+      }
+      return chunks.join("");
+    }
+
+    function setStatus(text) {
+      document.getElementById("status").textContent = String(text ?? "");
+    }
+
+    function clearChildren(el) {
+      while (el.firstChild) {
+        el.removeChild(el.firstChild);
+      }
+    }
+
+    function setBusy(busy) {
+      isExportBusy = busy;
+      const exportBtn = document.getElementById("export-btn");
+      const downloadBtn = document.getElementById("download-json-btn");
+      exportBtn.disabled = busy || !latestPreflight || !latestPreflight.canExport;
+      downloadBtn.disabled = busy || !latestScene;
+    }
+
+    function updateOverlayButton(active) {
+      const btn = document.getElementById("overlay-btn");
+      if (active) {
+        btn.className = "btn btn-active";
+        btn.textContent = "Remove Reading Order Overlay";
+      } else {
+        btn.className = "btn btn-outline";
+        btn.textContent = "Toggle Reading Order Overlay";
+      }
+    }
+
+    function renderCustomFonts() {
+      const listEl = document.getElementById("custom-fonts-list");
+      clearChildren(listEl);
+      loadedFonts.forEach((font, idx) => {
+        const chip = document.createElement("div");
+        chip.className = "font-chip";
+
+        const label = document.createElement("span");
+        const kb = Math.max(1, Math.round(font.sizeBytes / 1024));
+        label.textContent = `${font.filename} (${kb} KB)`;
+
+        const rmBtn = document.createElement("button");
+        rmBtn.type = "button";
+        rmBtn.className = "mini-btn";
+        rmBtn.textContent = "Remove";
+        rmBtn.addEventListener("click", () => {
+          loadedFonts.splice(idx, 1);
+          renderCustomFonts();
+          setStatus(`Removed custom font ${font.filename} from RAM.`);
+        });
+
+        chip.appendChild(label);
+        chip.appendChild(rmBtn);
+        listEl.appendChild(chip);
+      });
+    }
+
+    function render(scene, preflight, overlayActive) {
       latestScene = scene;
       latestPreflight = preflight;
-      document.getElementById("doc-title").value = scene.title || "";
-      document.getElementById("doc-lang").value = scene.lang || "en-US";
+
+      const titleEl = document.getElementById("doc-title");
+      const langEl = document.getElementById("doc-lang");
+      if (document.activeElement !== titleEl) titleEl.value = scene.title || "";
+      if (document.activeElement !== langEl) langEl.value = scene.lang || "en-US";
+      if (typeof overlayActive === "boolean") updateOverlayButton(overlayActive);
 
       const pfBox = document.getElementById("preflight-box");
-      const exportBtn = document.getElementById("export-btn");
-      exportBtn.disabled = !preflight.canExport;
+      clearChildren(pfBox);
+      setBusy(isExportBusy);
 
       if (preflight.canExport) {
         pfBox.className = "preflight pf-pass";
-        pfBox.innerHTML = `<strong>Dry-Run Preflight PASS</strong> · ${scene.frames.length} frame(s) · ${preflight.warnings.length} warning(s)`;
+        const strong = document.createElement("strong");
+        strong.textContent = "Dry-Run Preflight PASS";
+        pfBox.appendChild(strong);
+        pfBox.appendChild(
+          document.createTextNode(` · ${scene.frames.length} frame(s) · ${preflight.warnings.length} warning(s)`)
+        );
+        if (preflight.warnings.length > 0) {
+          const warnWrap = document.createElement("div");
+          warnWrap.className = "pf-warn";
+          const ul = document.createElement("ul");
+          ul.className = "pf-list";
+          for (const w of preflight.warnings) {
+            const li = document.createElement("li");
+            li.textContent = w.message;
+            ul.appendChild(li);
+          }
+          warnWrap.appendChild(ul);
+          pfBox.appendChild(warnWrap);
+        }
       } else {
         pfBox.className = "preflight pf-fail";
-        pfBox.innerHTML =
-          `<strong>Dry-Run Blocked (${preflight.errors.length} error(s)):</strong><ul style="margin:4px 0 0 14px;">` +
-          preflight.errors.map(e => `<li>${e.message}</li>`).join("") +
-          `</ul>`;
+        const strong = document.createElement("strong");
+        strong.textContent = `Dry-Run Blocked (${preflight.errors.length} error(s)):`;
+        pfBox.appendChild(strong);
+        const ul = document.createElement("ul");
+        ul.className = "pf-list";
+        for (const err of preflight.errors) {
+          const li = document.createElement("li");
+          li.textContent = err.message;
+          ul.appendChild(li);
+        }
+        pfBox.appendChild(ul);
       }
 
       const container = document.getElementById("nodes-container");
-      container.innerHTML = "";
+      clearChildren(container);
+
       for (const frame of scene.frames) {
         const hdr = document.createElement("div");
-        hdr.style.cssText = "font-family:var(--mono);font-size:10px;color:var(--muted);margin:10px 0 5px;text-transform:uppercase;";
-        hdr.textContent = `Frame: ${frame.name} (${frame.nodes.length} nodes)`;
+        hdr.className = "frame-hdr";
+        hdr.textContent = `Frame: ${frame.name} (${frame.width}×${frame.height} · ${frame.nodes.length} nodes)`;
         container.appendChild(hdr);
 
         frame.nodes.forEach((n, idx) => {
           const card = document.createElement("div");
           card.className = "node-card";
-          const roleOpts = ROLES.map(r => `<option value="${r}" ${r === n.role ? "selected" : ""}>${r}</option>`).join("");
-          card.innerHTML = `
-            <div class="node-head">
-              <span class="node-name">#${idx + 1} · ${n.name}</span>
-              <div style="display:flex;gap:4px;">
-                <button class="mini-btn js-up" title="Move up">↑</button>
-                <button class="mini-btn js-down" title="Move down">↓</button>
-              </div>
-            </div>
-            <div class="row" style="margin-bottom:4px;">
-              <select class="js-role" style="flex:1;">${roleOpts}</select>
-            </div>
-            ${n.role === "Figure" ? `<input class="js-alt" placeholder="Required Alt text for screen readers..." value="${(n.alt || "").replace(/"/g, "&quot;")}" />` : ""}
-          `;
-          card.querySelector(".js-role").addEventListener("change", (e) => {
+
+          const head = document.createElement("div");
+          head.className = "node-head";
+
+          const nameSpan = document.createElement("span");
+          nameSpan.className = "node-name";
+          nameSpan.textContent = `#${idx + 1} · ${n.name}`;
+
+          const btnGroup = document.createElement("div");
+          btnGroup.style.display = "flex";
+          btnGroup.style.gap = "4px";
+
+          const upBtn = document.createElement("button");
+          upBtn.type = "button";
+          upBtn.className = "mini-btn";
+          upBtn.title = "Move up";
+          upBtn.textContent = "↑";
+          upBtn.addEventListener("click", () => {
+            post({ type: "UPDATE_NODE_META", nodeId: n.id, readingOrder: Math.max(0, n.readingOrder - 2) });
+          });
+
+          const downBtn = document.createElement("button");
+          downBtn.type = "button";
+          downBtn.className = "mini-btn";
+          downBtn.title = "Move down";
+          downBtn.textContent = "↓";
+          downBtn.addEventListener("click", () => {
+            post({ type: "UPDATE_NODE_META", nodeId: n.id, readingOrder: n.readingOrder + 2 });
+          });
+
+          btnGroup.appendChild(upBtn);
+          btnGroup.appendChild(downBtn);
+          head.appendChild(nameSpan);
+          head.appendChild(btnGroup);
+          card.appendChild(head);
+
+          const meta = document.createElement("div");
+          meta.className = "node-meta";
+          const fontInfo = n.fontFamily ? ` · ${n.fontFamily}` : "";
+          meta.textContent = `xy(${n.x ?? 0}, ${n.y ?? 0}) · ${n.width ?? 0}×${n.height ?? 0}${fontInfo}`;
+          card.appendChild(meta);
+
+          const roleRow = document.createElement("div");
+          roleRow.className = "row";
+          roleRow.style.marginBottom = n.role === "Figure" ? "6px" : "0";
+
+          const roleSelect = document.createElement("select");
+          roleSelect.style.flex = "1";
+          for (const r of ROLES) {
+            const opt = document.createElement("option");
+            opt.value = r;
+            opt.textContent = r;
+            if (r === n.role) opt.selected = true;
+            roleSelect.appendChild(opt);
+          }
+          roleSelect.addEventListener("change", (e) => {
             post({ type: "UPDATE_NODE_META", nodeId: n.id, role: e.target.value });
           });
-          const altInput = card.querySelector(".js-alt");
-          if (altInput) {
+          roleRow.appendChild(roleSelect);
+          card.appendChild(roleRow);
+
+          if (n.role === "Figure") {
+            const altInput = document.createElement("input");
+            altInput.type = "text";
+            altInput.placeholder = "Required Alt text for screen readers...";
+            altInput.value = n.alt || "";
             altInput.addEventListener("change", (e) => {
               post({ type: "UPDATE_NODE_META", nodeId: n.id, alt: e.target.value });
             });
+            card.appendChild(altInput);
           }
-          card.querySelector(".js-up").addEventListener("click", () => {
-            post({ type: "UPDATE_NODE_META", nodeId: n.id, readingOrder: Math.max(0, n.readingOrder - 2) });
-          });
-          card.querySelector(".js-down").addEventListener("click", () => {
-            post({ type: "UPDATE_NODE_META", nodeId: n.id, readingOrder: n.readingOrder + 2 });
-          });
+
           container.appendChild(card);
         });
       }
     }
+
+    function buildExportPayload(scene) {
+      return {
+        ...scene,
+        title: document.getElementById("doc-title").value || scene.title,
+        lang: document.getElementById("doc-lang").value || scene.lang,
+        layoutMode: document.getElementById("layout-mode").value === "flow" ? "flow" : "positioned",
+        customFonts: loadedFonts.map((f) => ({ filename: f.filename, base64: f.base64 })),
+      };
+    }
+
+    function downloadBlob(blob, filename) {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }
+
+    async function handleExportReady(msg) {
+      try {
+        if (msg.scene && msg.preflight) {
+          render(msg.scene, msg.preflight);
+        }
+        const payload = buildExportPayload(msg.scene);
+        const safeName = (payload.title || "export").replace(/[^a-z0-9_-]/gi, "_") || "export";
+
+        if (msg.mode === "download-json") {
+          const jsonText = JSON.stringify(payload, null, 2);
+          const blob = new Blob([jsonText], { type: "application/json;charset=utf-8" });
+          downloadBlob(blob, `${safeName}_scene.json`);
+          const figNote = msg.exportedFigures ? ` · ${msg.exportedFigures} Figure PNG(s) embedded` : "";
+          setStatus(`Offline Scene JSON downloaded (${Math.round(blob.size / 1024)} KB${figNote}).`);
+          return;
+        }
+
+        if (!msg.preflight || !msg.preflight.canExport) {
+          setStatus("Export blocked by Dry-Run Preflight errors. Fix highlighted errors first.");
+          return;
+        }
+
+        const urlCheck = normalizeApiBaseUrl(document.getElementById("api-base-url").value);
+        if (!urlCheck.ok) {
+          setStatus(`Export aborted: ${urlCheck.error}`);
+          return;
+        }
+
+        setStatus(`Compiling ISO 14289-1 PDF/UA-1 (${payload.layoutMode}) at ${urlCheck.url}...`);
+        const res = await fetch(`${urlCheck.url}/api/compile`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        if (!res.ok) {
+          const errText = await res.text();
+          if (res.status === 404) {
+            throw new Error(`HTTP 404 from ${urlCheck.url}/api/compile — verify your Compiler API URL or use "Download Scene JSON (Offline)".`);
+          }
+          throw new Error(`HTTP ${res.status}: ${errText.slice(0, 300)}`);
+        }
+        const blob = await res.blob();
+        downloadBlob(blob, `${safeName}_pdfua1.pdf`);
+        const std = res.headers.get("X-TagFrame-Standard") || "PDF/UA-1";
+        const ms = res.headers.get("X-TagFrame-Compile-Ms") || "?";
+        setStatus(`PASS — Exported ${std} (${payload.layoutMode}) in ${ms}ms (${Math.round(blob.size / 1024)} KB).`);
+      } catch (err) {
+        setStatus(`Export failed: ${err && err.message ? err.message : String(err)}`);
+      } finally {
+        setBusy(false);
+      }
+    }
+
+    function persistSettings() {
+      const apiInput = document.getElementById("api-base-url");
+      const urlCheck = normalizeApiBaseUrl(apiInput.value);
+      if (!urlCheck.ok) {
+        setStatus(urlCheck.error);
+        return;
+      }
+      apiInput.value = urlCheck.url;
+      post({
+        type: "SAVE_SETTINGS",
+        apiBaseUrl: urlCheck.url,
+        layoutMode: document.getElementById("layout-mode").value,
+        title: document.getElementById("doc-title").value,
+        lang: document.getElementById("doc-lang").value,
+      });
+    }
+
+    document.getElementById("api-base-url").addEventListener("change", persistSettings);
+    document.getElementById("layout-mode").addEventListener("change", persistSettings);
+    document.getElementById("doc-title").addEventListener("change", persistSettings);
+    document.getElementById("doc-lang").addEventListener("change", persistSettings);
+
+    document.getElementById("custom-fonts-input").addEventListener("change", async (event) => {
+      const input = event.target;
+      const files = Array.from(input.files || []);
+      if (files.length === 0) return;
+
+      const messages = [];
+      for (const file of files) {
+        if (loadedFonts.length >= MAX_CUSTOM_FONTS) {
+          messages.push(`Limit reached: max ${MAX_CUSTOM_FONTS} custom fonts in RAM.`);
+          break;
+        }
+        const safeName = sanitizeCustomFontFilename(file.name);
+        if (!safeName) {
+          messages.push(`Skipped "${file.name}": only .ttf or .otf fonts allowed.`);
+          continue;
+        }
+        if (file.size > MAX_CUSTOM_FONT_BYTES) {
+          messages.push(`Skipped "${safeName}": exceeds 5 MB limit.`);
+          continue;
+        }
+        const buf = await file.arrayBuffer();
+        const b64 = uint8ArrayToBase64(new Uint8Array(buf));
+        loadedFonts = loadedFonts.filter((f) => f.filename !== safeName);
+        loadedFonts.push({ filename: safeName, base64: b64, sizeBytes: file.size });
+      }
+      input.value = "";
+      renderCustomFonts();
+      if (messages.length > 0) {
+        setStatus(messages.join(" "));
+      } else {
+        setStatus(`Loaded ${loadedFonts.length} custom font(s) into browser RAM (transient).`);
+      }
+    });
 
     document.getElementById("rescan-btn").addEventListener("click", () => {
       post({
         type: "RESCAN",
         title: document.getElementById("doc-title").value,
         lang: document.getElementById("doc-lang").value,
+        layoutMode: document.getElementById("layout-mode").value,
       });
     });
 
-    document.getElementById("export-btn").addEventListener("click", async () => {
-      if (!latestScene || !latestPreflight?.canExport) return;
-      const statusEl = document.getElementById("status");
-      statusEl.textContent = "Compiling ISO 14289-1 PDF/UA-1 in RAM...";
-      try {
-        const res = await fetch(`${API_BASE_URL}/api/compile`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            ...latestScene,
-            title: document.getElementById("doc-title").value,
-            lang: document.getElementById("doc-lang").value,
-          }),
-        });
-        if (!res.ok) throw new Error(await res.text());
-        const blob = await res.blob();
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `${(latestScene.title || "export").replace(/[^a-z0-9_-]/gi, "_")}_pdfua1.pdf`;
-        a.click();
-        URL.revokeObjectURL(url);
-        statusEl.textContent = `PASS — Exported ${res.headers.get("X-TagFrame-Standard") || "PDF/UA-1"} in ${res.headers.get("X-TagFrame-Compile-Ms") || "?"}ms.`;
-      } catch (err) {
-        statusEl.textContent = `Export failed: ${err.message}`;
+    document.getElementById("overlay-btn").addEventListener("click", () => {
+      post({ type: "TOGGLE_OVERLAY" });
+    });
+
+    document.getElementById("download-json-btn").addEventListener("click", () => {
+      if (!latestScene || isExportBusy) return;
+      setBusy(true);
+      setStatus("Preparing offline Scene JSON (including 2x Figure PNGs)...");
+      post({
+        type: "PREPARE_EXPORT",
+        mode: "download-json",
+        title: document.getElementById("doc-title").value,
+        lang: document.getElementById("doc-lang").value,
+        layoutMode: document.getElementById("layout-mode").value,
+      });
+    });
+
+    document.getElementById("export-btn").addEventListener("click", () => {
+      if (!latestScene || !latestPreflight || !latestPreflight.canExport || isExportBusy) return;
+      const urlCheck = normalizeApiBaseUrl(document.getElementById("api-base-url").value);
+      if (!urlCheck.ok) {
+        setStatus(`Cannot export: ${urlCheck.error}`);
+        return;
       }
+      setBusy(true);
+      setStatus("Rasterizing Figure PNGs (2x) and preparing scene in RAM...");
+      post({
+        type: "PREPARE_EXPORT",
+        mode: "compile",
+        title: document.getElementById("doc-title").value,
+        lang: document.getElementById("doc-lang").value,
+        layoutMode: document.getElementById("layout-mode").value,
+      });
     });
 
     window.onmessage = (event) => {
-      const msg = event.data.pluginMessage;
-      if (msg && msg.type === "SCAN_RESULT") {
-        render(msg.scene, msg.preflight);
+      const msg = event && event.data ? event.data.pluginMessage : null;
+      if (!msg || typeof msg !== "object") return;
+
+      if (msg.type === "SETTINGS_LOADED" && msg.settings) {
+        const apiInput = document.getElementById("api-base-url");
+        if (document.activeElement !== apiInput) {
+          apiInput.value = msg.settings.apiBaseUrl || DEFAULT_API_BASE_URL;
+        }
+        const modeSelect = document.getElementById("layout-mode");
+        if (msg.settings.layoutMode === "flow" || msg.settings.layoutMode === "positioned") {
+          modeSelect.value = msg.settings.layoutMode;
+        }
+        if (msg.error) {
+          setStatus(msg.error);
+        } else if (msg.saved) {
+          setStatus(`Saved settings (${msg.settings.apiBaseUrl} · ${msg.settings.layoutMode}).`);
+        }
+        return;
+      }
+
+      if (msg.type === "SCAN_RESULT") {
+        render(msg.scene, msg.preflight, msg.overlayActive);
+        return;
+      }
+
+      if (msg.type === "OVERLAY_STATUS") {
+        updateOverlayButton(Boolean(msg.active));
+        if (msg.message) setStatus(msg.message);
+        return;
+      }
+
+      if (msg.type === "EXPORT_READY") {
+        handleExportReady(msg);
       }
     };
+
+    post({ type: "INIT" });
   </script>
 </body>
 </html>

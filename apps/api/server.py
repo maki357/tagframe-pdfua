@@ -18,13 +18,14 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 import typst
 
-from compiler import compile_figma_scene_to_pdfua1
+from compiler import compile_figma_scene_to_pdfua1, validate_scene_inputs
 from db import TagFrameStore, compute_discounted_price_cents, utc_now_iso
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 WEB_DIR = BASE_DIR / "web"
+MAX_COMPILE_BODY_BYTES = 45 * 1024 * 1024  # 45 MB hard raw JSON body cap (accommodates up to 5x5MB fonts + 10MB images in base64)
 
-app = FastAPI(title="TagFrame PDF/UA API", version="0.1.0")
+app = FastAPI(title="TagFrame PDF/UA API", version="0.2.0")
 
 # Allow Figma plugin iframe (`null` origin) and browser clients cleanly
 app.add_middleware(
@@ -33,7 +34,7 @@ app.add_middleware(
     allow_credentials=False,
     allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["*"],
-    expose_headers=["X-TagFrame-Standard", "X-TagFrame-Compile-Ms", "X-TagFrame-Nodes"],
+    expose_headers=["X-TagFrame-Standard", "X-TagFrame-Layout-Mode", "X-TagFrame-Compile-Ms", "X-TagFrame-Nodes"],
 )
 
 store = TagFrameStore()
@@ -85,16 +86,21 @@ def health() -> dict[str, Any]:
 @app.post("/api/compile")
 async def compile_scene(request: Request) -> Response:
     raw = await request.body()
-    if len(raw) > 20 * 1024 * 1024:
-        raise HTTPException(status_code=413, detail="Scene payload exceeds 20 MB limit.")
+    if len(raw) > MAX_COMPILE_BODY_BYTES:
+        raise HTTPException(status_code=422, detail=f"Scene payload exceeds {MAX_COMPILE_BODY_BYTES // (1024 * 1024)} MB limit.")
     try:
         scene = json.loads(raw.decode("utf-8"))
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid JSON payload.")
 
+    # Pre-validate scene structure, layoutMode, and customFonts BEFORE consuming license quota
+    try:
+        _, frames, _ = validate_scene_inputs(scene)
+    except ValueError as ve:
+        raise HTTPException(status_code=422, detail=str(ve))
+
     # Optional license quota enforcement when X-License-Key is passed
     license_key = request.headers.get("X-License-Key")
-    frames = scene.get("frames") or []
     if license_key:
         quota = store.consume_pages_atomic(license_key, max(1, len(frames)))
         if not quota["allowed"]:
@@ -107,13 +113,14 @@ async def compile_scene(request: Request) -> Response:
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"PDF/UA-1 compilation error: {exc}")
 
-    safe_name = "".join(c if c.isalnum() or c in "-_" else "_" for c in (scene.get("title") or "export"))[:60] or "export"
+    safe_name = "".join(c if c.isalnum() or c in "-_" else "_" for c in (str(scene.get("title") or "export")))[:60] or "export"
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",
         headers={
             "Content-Disposition": f'attachment; filename="{safe_name}_pdfua1.pdf"',
             "X-TagFrame-Standard": telemetry["standard"],
+            "X-TagFrame-Layout-Mode": telemetry["layout_mode"],
             "X-TagFrame-Compile-Ms": str(telemetry["compile_ms"]),
             "X-TagFrame-Nodes": str(telemetry["nodes_compiled"]),
             "Cache-Control": "no-store",

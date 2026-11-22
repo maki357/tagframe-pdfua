@@ -8,12 +8,14 @@
   "documentAccess": "dynamic-page",
   "networkAccess": {
     "allowedDomains": [
-      "https://tagframe-pdfua-production.up.railway.app"
+      "*"
     ],
     "devAllowedDomains": [
+      "http://127.0.0.1:8000",
+      "http://localhost:8000",
       "http://127.0.0.1:8080",
       "http://localhost:8080"
     ],
-    "reasoning": "Sends structured semantic scene metadata to the stateless in-RAM TagFrame PDF/UA-1 compiler and returns a validated ISO 14289-1 PDF binary."
+    "reasoning": "Allows connecting to a user-configured HTTPS or local stateless in-RAM TagFrame PDF/UA-1 compiler endpoint to compile structured scene JSON into an ISO 14289-1 PDF binary."
   }
 }

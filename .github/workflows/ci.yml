@@ -1,4 +1,4 @@
-name: CI — State-Machine, Plugin Engine & E2E PDF/UA-1 Tests
+name: CI — State-Machine, Plugin Engine, E2E & veraPDF PDF/UA-1 Tests
 
 on:
   push:
@@ -16,10 +16,14 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
+      - uses: actions/setup-java@v4
+        with:
+          distribution: "temurin"
+          java-version: "17"
       - name: Install system fonts and Python deps
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends fonts-dejavu-core fonts-liberation
+          sudo apt-get install -y --no-install-recommends fonts-dejavu-core fonts-liberation unzip curl
           pip install -r apps/api/requirements.txt httpx
       - name: Run Python API & State-Machine tests
         run: python tests/test_api_and_state_machine.py
@@ -29,3 +33,189 @@ jobs:
           node --check apps/figma-plugin/dist/code.js
           node tests/pdfua_inspector.test.mjs
           node tests/test_plugin_engine_and_e2e.mjs
+      - name: Install official veraPDF Greenfield CLI
+        run: |
+          set -euo pipefail
+          curl -fsSL https://software.verapdf.org/releases/verapdf-installer.zip -o /tmp/verapdf-installer.zip
+          rm -rf /tmp/verapdf-unzip /tmp/verapdf-cli
+          unzip -q /tmp/verapdf-installer.zip -d /tmp/verapdf-unzip
+          INSTALLER_DIR="$(find /tmp/verapdf-unzip -maxdepth 1 -type d -name 'verapdf-greenfield-*' | head -n 1)"
+          if [ -z "$INSTALLER_DIR" ]; then
+            echo "ERROR: Could not locate verapdf-greenfield-* directory inside installer zip." >&2
+            exit 1
+          fi
+          cat << 'EOF' > /tmp/verapdf-auto-install.xml
+          <?xml version="1.0" encoding="UTF-8" standalone="no"?>
+          <AutomatedInstallation langpack="eng">
+              <com.izforge.izpack.panels.htmlhello.HTMLHelloPanel id="welcome"/>
+              <com.izforge.izpack.panels.target.TargetPanel id="install_dir">
+                  <installpath>/tmp/verapdf-cli</installpath>
+              </com.izforge.izpack.panels.target.TargetPanel>
+              <com.izforge.izpack.panels.packs.PacksPanel id="sdk_pack_select">
+                  <pack index="0" name="veraPDF GUI" selected="false"/>
+                  <pack index="1" name="veraPDF CLI" selected="true"/>
+                  <pack index="2" name="veraPDF Documentation" selected="false"/>
+                  <pack index="3" name="veraPDF Sample Plugins" selected="false"/>
+              </com.izforge.izpack.panels.packs.PacksPanel>
+              <com.izforge.izpack.panels.install.InstallPanel id="install"/>
+              <com.izforge.izpack.panels.finish.FinishPanel id="finish"/>
+          </AutomatedInstallation>
+          EOF
+          java -jar "$INSTALLER_DIR"/verapdf-izpack-installer-*.jar /tmp/verapdf-auto-install.xml
+          echo "/tmp/verapdf-cli" >> "$GITHUB_PATH"
+          /tmp/verapdf-cli/verapdf --version
+      - name: Validate PDF/UA-1 compliance with official veraPDF (-f ua1)
+        run: |
+          python - << 'PYEOF'
+          import base64
+          import json
+          import os
+          import struct
+          import subprocess
+          import sys
+          import tempfile
+          import zlib
+          from pathlib import Path
+
+          sys.path.insert(0, str(Path("apps/api").resolve()))
+          from compiler import compile_figma_scene_to_pdfua1
+
+          def make_png(w=8, h=8, rgb=(248, 250, 252)):
+              def chunk(tag, data):
+                  return struct.pack(">I", len(data)) + tag + data + struct.pack(">I", zlib.crc32(tag + data) & 0xFFFFFFFF)
+              raw = b"".join(b"\x00" + bytes(rgb) * w for _ in range(h))
+              return (
+                  b"\x89PNG\r\n\x1a\n"
+                  + chunk(b"IHDR", struct.pack(">IIBBBBB", w, h, 8, 2, 0, 0, 0))
+                  + chunk(b"IDAT", zlib.compress(raw))
+                  + chunk(b"IEND", b"")
+              )
+
+          def as_bool(val):
+              if isinstance(val, bool):
+                  return val
+              if isinstance(val, str):
+                  return val.strip().lower() == "true"
+              return False
+
+          def extract_validation_results(payload):
+              root = payload.get("report") if isinstance(payload.get("report"), dict) else payload
+              batch = root.get("batchSummary") or {}
+              if int(batch.get("failedToParse") or 0) > 0 or int(batch.get("veraExceptions") or 0) > 0:
+                  raise RuntimeError(f"veraPDF batch parse/exception failure: {batch}")
+              jobs = root.get("jobs") or []
+              results = []
+              for job in jobs:
+                  if not isinstance(job, dict):
+                      continue
+                  for key in ("validationResult", "validationReport"):
+                      node = job.get(key)
+                      if isinstance(node, list):
+                          results.extend([x for x in node if isinstance(x, dict)])
+                      elif isinstance(node, dict):
+                          results.append(node)
+              return results
+
+          def validate_with_verapdf(label, pdf_path):
+              proc = subprocess.run(
+                  ["verapdf", "-f", "ua1", "--format", "json", str(pdf_path)],
+                  capture_output=True,
+                  text=True,
+              )
+              if not proc.stdout.strip():
+                  raise RuntimeError(f"[{label}] veraPDF produced empty stdout (rc={proc.returncode}): {proc.stderr}")
+              data = json.loads(proc.stdout)
+              results = extract_validation_results(data)
+              if not results:
+                  raise RuntimeError(f"[{label}] No validationResult/validationReport found in veraPDF JSON output.")
+
+              for idx, res in enumerate(results):
+                  compliant = as_bool(res.get("compliant") if "compliant" in res else res.get("isCompliant"))
+                  details = res.get("details") or {}
+                  failed_rules = int(details.get("failedRules") or 0)
+                  passed_rules = int(details.get("passedRules") or 0)
+                  if not compliant or failed_rules > 0 or passed_rules <= 0 or proc.returncode != 0:
+                      rule_summaries = details.get("ruleSummaries") or res.get("rules") or []
+                      failed_list = [
+                          r for r in rule_summaries
+                          if isinstance(r, dict) and (r.get("status") == "failed" or int(r.get("failedChecks") or 0) > 0)
+                      ]
+                      print(f"FAIL [{label}] (result #{idx}, rc={proc.returncode}): compliant={compliant}, passedRules={passed_rules}, failedRules={failed_rules}", file=sys.stderr)
+                      print("Failed rules:", json.dumps(failed_list[:20], indent=2), file=sys.stderr)
+                      sys.exit(1)
+                  print(f"PASS [{label}]: compliant={compliant}, passedRules={passed_rules}, failedRules={failed_rules}")
+
+          bg_b64 = base64.b64encode(make_png(8, 8, (248, 250, 252))).decode("ascii")
+          fig_b64 = base64.b64encode(make_png(8, 8, (15, 118, 110))).decode("ascii")
+
+          positioned_scene = {
+              "title": "CI veraPDF Positioned ISO 14289-1 Verification",
+              "author": "TagFrame CI",
+              "lang": "en-US",
+              "layoutMode": "positioned",
+              "frames": [
+                  {
+                      "id": "f1",
+                      "width": 960,
+                      "height": 540,
+                      "backgroundColor": "#FFFFFF",
+                      "backgroundImageBase64": bg_b64,
+                      "nodes": [
+                          {"id": "n1", "role": "H1", "text": "Positioned Multi-Column Heading", "x": 500, "y": 280, "width": 410, "fontSize": 26, "fontWeight": "Bold", "readingOrder": 0},
+                          {"id": "n2", "role": "H2", "text": "Left Column Overview", "x": 40, "y": 40, "width": 400, "fontSize": 20, "fontWeight": "Bold", "readingOrder": 1},
+                          {"id": "n3", "role": "P", "text": "Deterministic semantic reading order with exact Figma coordinates.", "x": 40, "y": 95, "width": 400, "fontSize": 13, "readingOrder": 2},
+                          {"id": "n4", "role": "Figure", "alt": "Green status badge representing verified ISO 14289-1 output.", "imageBase64": fig_b64, "x": 500, "y": 40, "width": 360, "height": 120, "readingOrder": 3},
+                          {"id": "n5", "role": "Table", "headers": ["Check", "Status"], "rows": [["StructTreeRoot", "PASS"], ["ReadingOrder", "Deterministic"]], "x": 40, "y": 190, "width": 400, "readingOrder": 4},
+                          {"id": "n6", "role": "List", "items": ["Tagged headings", "Full-bleed Artifact background"], "x": 40, "y": 330, "width": 380, "readingOrder": 5},
+                          {"id": "n7", "role": "Link", "text": "ISO 14289-1 Reference", "url": "https://www.iso.org/standard/64599.html", "x": 40, "y": 430, "width": 260, "readingOrder": 6},
+                      ],
+                  }
+              ],
+          }
+
+          flow_scene = {
+              "title": "CI veraPDF Flow ISO 14289-1 Verification",
+              "author": "TagFrame CI",
+              "lang": "en-US",
+              "layoutMode": "flow",
+              "frames": [
+                  {
+                      "id": "f1",
+                      "width": 960,
+                      "height": 540,
+                      "backgroundColor": "#FFFFFF",
+                      "nodes": [
+                          {"id": "a1", "role": "Artifact", "color": "#0F766E", "readingOrder": 0},
+                          {"id": "h1", "role": "H1", "text": "Flow Mode Accessible Document", "fontSize": 28, "fontWeight": "Bold", "readingOrder": 1},
+                          {"id": "h2", "role": "H2", "text": "Compliance Summary", "fontSize": 20, "fontWeight": "Bold", "readingOrder": 2},
+                          {"id": "p1", "role": "P", "text": "Compiled cleanly in flow mode for reflowable PDF/UA-1 output.", "fontSize": 14, "readingOrder": 3},
+                          {"id": "fig1", "role": "Figure", "alt": "Architecture diagram placeholder with descriptive Alt text.", "readingOrder": 4},
+                          {"id": "tbl1", "role": "Table", "headers": ["Standard", "Outcome"], "rows": [["PDF/UA-1", "Compliant"]], "readingOrder": 5},
+                          {"id": "l1", "role": "List", "items": ["Embedded live fonts", "XMP pdfuaid:part=1"], "readingOrder": 6},
+                          {"id": "lnk1", "role": "Link", "text": "veraPDF Validator", "url": "https://verapdf.org", "readingOrder": 7},
+                      ],
+                  }
+              ],
+          }
+
+          with tempfile.TemporaryDirectory(prefix="verapdf_ci_") as td:
+              pos_pdf_path = Path(td) / "compiled_positioned_pdfua1.pdf"
+              flow_pdf_path = Path(td) / "compiled_flow_pdfua1.pdf"
+
+              pos_bytes, _ = compile_figma_scene_to_pdfua1(positioned_scene)
+              flow_bytes, _ = compile_figma_scene_to_pdfua1(flow_scene)
+              pos_pdf_path.write_bytes(pos_bytes)
+              flow_pdf_path.write_bytes(flow_bytes)
+
+              targets = [
+                  ("sample_after_tagframe_pdfua1.pdf", Path("apps/web/samples/sample_after_tagframe_pdfua1.pdf")),
+                  ("fresh_positioned_pdfua1.pdf", pos_pdf_path),
+                  ("fresh_flow_pdfua1.pdf", flow_pdf_path),
+              ]
+              for label, path in targets:
+                  if not path.is_file():
+                      raise FileNotFoundError(f"Missing PDF validation target: {path}")
+                  validate_with_verapdf(label, path)
+
+          print("ALL 3 PDF/UA-1 TARGETS PASSED OFFICIAL VERAPDF (ISO 14289-1 ua1) VALIDATION!")
+          PYEOF
