@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TagFrame PDF/UA — Free Zero-Upload Figma PDF EAA &amp; PDF/UA-1 Checker</title>
+  <meta name="description" content="100% client-side ISO 14289-1 (PDF/UA-1) structural preflight inspector for Figma and Figma Slides PDF exports, plus live stateless PDF/UA-1 compiler." />
+  <style>
+    :root {
+      --bg: #f8fafc; --surface: #ffffff; --surface-subtle: #f1f5f9;
+      --border: #cbd5e1; --border-strong: #94a3b8;
+      --ink: #0f172a; --muted: #475569;
+      --brand: #0f766e; --brand-hover: #115e59; --brand-soft: #ccfbf1;
+      --pass-bg: #dcfce7; --pass-ink: #14532d;
+      --fail-bg: #fee2e2; --fail-ink: #7f1d1d;
+      --warn-bg: #fef3c7; --warn-ink: #78350f;
+      --info-bg: #e2e8f0; --info-ink: #334155;
+      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, Helvetica, Arial, sans-serif;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: var(--bg); color: var(--ink); font-family: var(--sans); line-height: 1.55; -webkit-font-smoothing: antialiased; }
+    a { color: var(--brand); text-decoration: underline; text-underline-offset: 3px; }
+    a:hover { color: var(--brand-hover); }
+    :focus-visible { outline: 3px solid #0284c7; outline-offset: 2px; border-radius: 4px; }
+    .container { max-width: 1060px; margin: 0 auto; padding: 0 24px; }
+    header { background: var(--surface); border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 20; }
+    .nav-bar { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 0; flex-wrap: wrap; }
+    .brand { display: inline-flex; align-items: center; gap: 10px; font-weight: 800; font-size: 1.05rem; color: var(--ink); text-decoration: none; }
+    .brand-mark { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 6px; background: var(--ink); color: #fff; font-family: var(--mono); font-size: 0.78rem; }
+    nav { display: flex; align-items: center; gap: 20px; font-size: 0.92rem; }
+    nav a { color: var(--muted); text-decoration: none; font-weight: 500; }
+    nav a:hover { color: var(--ink); }
+    .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 10px 18px; border-radius: 8px; font-weight: 600; font-size: 0.92rem; cursor: pointer; border: 1px solid transparent; text-decoration: none; transition: 0.15s ease; }
+    .btn-primary { background: var(--brand); color: #fff; }
+    .btn-primary:hover { background: var(--brand-hover); color: #fff; }
+    .btn-dark { background: var(--ink); color: #fff; }
+    .btn-dark:hover { background: #1e293b; color: #fff; }
+    .btn-outline { background: var(--surface); color: var(--ink); border-color: var(--border-strong); }
+    .btn-outline:hover { background: var(--surface-subtle); color: var(--ink); }
+    .btn-sm { padding: 7px 13px; font-size: 0.84rem; }
+    .hero { padding: 48px 0 28px; }
+    .pill { display: inline-flex; align-items: center; gap: 8px; font-family: var(--mono); font-size: 0.76rem; font-weight: 700; background: var(--brand-soft); color: #115e59; padding: 5px 12px; border-radius: 999px; margin-bottom: 16px; }
+    h1 { font-size: clamp(1.85rem, 3.8vw, 2.75rem); line-height: 1.15; letter-spacing: -0.025em; max-width: 820px; margin-bottom: 14px; }
+    .hero-sub { font-size: 1.06rem; color: var(--muted); max-width: 740px; margin-bottom: 24px; }
+    .checker-card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 24px; box-shadow: 0 2px 10px rgba(15,23,42,0.04); }
+    .dropzone { border: 2px dashed var(--border-strong); border-radius: 12px; background: var(--surface-subtle); padding: 36px 24px; text-align: center; cursor: pointer; transition: 0.15s ease; }
+    .dropzone:hover, .dropzone.dragover { border-color: var(--brand); background: #f0fdfa; }
+    .dropzone h2 { font-size: 1.15rem; margin-bottom: 6px; }
+    .dropzone p { color: var(--muted); font-size: 0.92rem; margin-bottom: 16px; }
+    .sample-bar { margin-top: 18px; padding-top: 18px; border-top: 1px solid var(--border); display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
+    .sample-actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+    .sample-label { font-family: var(--mono); font-size: 0.78rem; color: var(--muted); font-weight: 700; text-transform: uppercase; }
+    #report-section { margin-top: 24px; display: none; }
+    .verdict-banner { border-radius: 12px; padding: 18px 22px; margin-bottom: 18px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 14px; border: 1px solid transparent; }
+    .verdict-pass { background: var(--pass-bg); color: var(--pass-ink); border-color: #86efac; }
+    .verdict-fail { background: var(--fail-bg); color: var(--fail-ink); border-color: #fca5a5; }
+    .verdict-warn { background: var(--warn-bg); color: var(--warn-ink); border-color: #fcd34d; }
+    .verdict-title { font-size: 1.15rem; font-weight: 800; font-family: var(--mono); }
+    .verdict-meta { font-size: 0.86rem; opacity: 0.92; margin-top: 4px; }
+    .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; margin-bottom: 20px; }
+    .kpi { background: var(--surface-subtle); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; }
+    .kpi-label { font-family: var(--mono); font-size: 0.73rem; color: var(--muted); text-transform: uppercase; }
+    .kpi-val { font-family: var(--mono); font-size: 1.18rem; font-weight: 800; margin-top: 4px; color: var(--ink); }
+    .table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); }
+    table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+    th, td { padding: 12px 14px; text-align: left; border-bottom: 1px solid var(--border); vertical-align: top; }
+    th { background: var(--surface-subtle); font-family: var(--mono); font-size: 0.76rem; color: var(--muted); text-transform: uppercase; }
+    tr:last-child td { border-bottom: none; }
+    .badge { display: inline-block; padding: 3px 9px; border-radius: 999px; font-family: var(--mono); font-size: 0.74rem; font-weight: 800; letter-spacing: 0.03em; }
+    .b-pass { background: var(--pass-bg); color: var(--pass-ink); }
+    .b-fail { background: var(--fail-bg); color: var(--fail-ink); }
+    .b-warn { background: var(--warn-bg); color: var(--warn-ink); }
+    .b-info { background: var(--info-bg); color: var(--info-ink); }
+    .tag-cloud { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+    .tag-chip { font-family: var(--mono); font-size: 0.78rem; padding: 4px 10px; background: var(--surface-subtle); border: 1px solid var(--border); border-radius: 6px; }
+    .caveat-box { margin-top: 18px; padding: 14px 16px; border-radius: 10px; background: var(--surface-subtle); border-left: 4px solid var(--ink); font-size: 0.86rem; color: var(--muted); }
+    section.content-sec { padding: 48px 0; border-top: 1px solid var(--border); scroll-margin-top: 72px; }
+    section.content-sec h2 { font-size: 1.55rem; letter-spacing: -0.02em; margin-bottom: 10px; }
+    .lead { color: var(--muted); max-width: 720px; margin-bottom: 24px; }
+    .grid-3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 18px; }
+    .grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(310px, 1fr)); gap: 20px; }
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 22px; }
+    .card h3 { font-size: 1.04rem; margin-bottom: 8px; }
+    .card p { font-size: 0.92rem; color: var(--muted); }
+    .founding-box { background: var(--ink); color: #f8fafc; border-radius: 14px; padding: 32px; display: grid; grid-template-columns: 1.15fr 1fr; gap: 28px; align-items: start; }
+    @media (max-width: 820px) { .founding-box { grid-template-columns: 1fr; } }
+    .founding-box p, .founding-box li { color: #cbd5e1; font-size: 0.94rem; }
+    .founding-box ul { list-style: none; display: grid; gap: 8px; margin-top: 14px; }
+    .founding-box li::before { content: "✓ "; color: #5eead4; font-weight: 800; }
+    .lead-form { background: #1e293b; border: 1px solid #334155; border-radius: 12px; padding: 22px; display: grid; gap: 12px; }
+    .lead-form label { display: block; font-family: var(--mono); font-size: 0.74rem; color: #94a3b8; margin-bottom: 4px; text-transform: uppercase; }
+    .lead-form input, .lead-form select, .lead-form textarea {
+      width: 100%; padding: 9px 11px; border-radius: 7px; border: 1px solid #475569;
+      background: #0f172a; color: #f8fafc; font-family: var(--sans); font-size: 0.9rem;
+    }
+    .lead-status { font-family: var(--mono); font-size: 0.82rem; padding: 10px 12px; border-radius: 8px; display: none; }
+    .lead-ok { background: rgba(52, 211, 153, 0.14); color: #6ee7b7; border: 1px solid #059669; }
+    .lead-err { background: rgba(248, 113, 113, 0.14); color: #fca5a5; border: 1px solid #dc2626; }
+    footer { border-top: 1px solid var(--border); padding: 28px 0; font-size: 0.84rem; color: var(--muted); background: var(--surface); }
+    .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="container nav-bar">
+    <a href="#" class="brand">
+      <span class="brand-mark" aria-hidden="true">UA</span>
+      <span>TagFrame PDF/UA</span>
+    </a>
+    <nav aria-label="Primary navigation">
+      <a href="#checker">Free PDF/UA Checker</a>
+      <a href="#before-after">Before vs. After</a>
+      <a href="#plugin">Figma Plugin</a>
+      <a href="#founding" class="btn btn-primary btn-sm">Async Beta / Founding Access</a>
+    </nav>
+  </div>
+</header>
+
+<main class="container">
+  <section class="hero" id="checker">
+    <div class="pill">100% BROWSER-SIDE INSPECTOR · ZERO UPLOADS · ISO 14289-1 (EU EAA / WCAG)</div>
+    <h1>Check why your Figma &amp; Figma Slides PDFs fail EU EAA / PDF/UA-1 — in 1 second.</h1>
+    <p class="hero-sub">
+      Native Figma exports outline text into vector curves with zero semantic tags, breaking screen readers and Acrobat Auto-Tag. Drop any PDF below to run a real binary structural preflight (including compressed <code>/FlateDecode</code> and <code>/ObjStm</code> streams) — <strong>nothing ever leaves your computer</strong>.
+    </p>
+
+    <div class="checker-card">
+      <div id="dropzone" class="dropzone" role="button" tabindex="0" aria-label="Drop a PDF file here or press Enter to select a file">
+        <h2>Drop any Figma, Slides, Canva, or Acrobat PDF here</h2>
+        <p>Inspected locally in browser RAM (max 50 MB). Zero server uploads, GDPR-safe for confidential client decks.</p>
+        <input id="file-input" type="file" accept=".pdf,application/pdf" class="sr-only" />
+        <button id="browse-btn" type="button" class="btn btn-dark">Choose PDF File</button>
+      </div>
+
+      <div class="sample-bar">
+        <span class="sample-label">Or test live with identical 2-slide Before → After PDFs:</span>
+        <div class="sample-actions">
+          <button id="load-before-btn" type="button" class="btn btn-outline btn-sm">Load Before (Untagged)</button>
+          <button id="load-after-btn" type="button" class="btn btn-primary btn-sm">Load After (PDF/UA-1)</button>
+          <button id="live-compile-btn" type="button" class="btn btn-dark btn-sm" style="display:none;">Compile Live via API &amp; Inspect</button>
+        </div>
+      </div>
+
+      <div id="report-section" aria-live="polite">
+        <div id="verdict-banner" class="verdict-banner">
+          <div>
+            <div id="verdict-title" class="verdict-title"></div>
+            <div id="verdict-meta" class="verdict-meta"></div>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <button id="copy-json-btn" type="button" class="btn btn-outline btn-sm">Copy JSON Report</button>
+            <button id="reset-btn" type="button" class="btn btn-outline btn-sm">Inspect Another PDF</button>
+          </div>
+        </div>
+
+        <div class="kpi-grid" id="kpi-grid"></div>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th style="width:110px;">Status</th>
+                <th style="width:270px;">ISO 14289-1 Machine Check</th>
+                <th>Measured Evidence</th>
+              </tr>
+            </thead>
+            <tbody id="checks-tbody"></tbody>
+          </table>
+        </div>
+
+        <div id="structure-details" class="card" style="margin-top:18px;">
+          <h3>Detected Semantic Structure &amp; Figures</h3>
+          <div id="tag-cloud" class="tag-cloud"></div>
+          <div id="figure-list" style="margin-top:12px;font-size:0.88rem;color:var(--muted);"></div>
+        </div>
+
+        <div class="caveat-box">
+          <strong>Honest Accessibility Scope:</strong> Automated preflight verifies machine-checkable ISO 14289-1 / Matterhorn technical structure (XMP <code>pdfuaid:part=1</code>, <code>/StructTreeRoot</code>, <code>/MarkInfo</code>, embedded fonts + <code>/ToUnicode</code>, <code>/Lang</code>, <code>DisplayDocTitle</code>, heading skips, and presence of <code>/Alt</code> &amp; <code>/TH</code>). For full EU EAA / WCAG AA compliance, human review is still required to confirm meaningful Alt descriptions and logical reading order. Always validate final production deliverables with <strong>veraPDF</strong> or <strong>PAC 2024</strong>.
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="content-sec" id="before-after">
+    <h2>Inspect the Real Before → After PDFs Yourself</h2>
+    <p class="lead">Don't trust screenshots. Download both identical 2-slide 16:9 decks and open them in <strong>PAC 2024</strong>, <strong>veraPDF</strong>, or <strong>Adobe Acrobat Pro</strong> to inspect the raw tag tree.</p>
+    <div class="grid-2">
+      <div class="card">
+        <span class="badge b-fail" style="margin-bottom:10px;">BEFORE · UNTAGGED OUTLINED EXPORT</span>
+        <h3>Figma-Style Untagged Sample (329 KB)</h3>
+        <p style="margin-bottom:14px;">Zero embedded fonts, zero selectable text, no <code>/StructTreeRoot</code>, no <code>/Lang</code>, no <code>pdfuaid:part=1</code>.</p>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;">
+          <a href="./samples/sample_before_figma_style_untagged.pdf" download class="btn btn-outline btn-sm">Download Before PDF</a>
+          <button type="button" class="btn btn-outline btn-sm js-trigger-before">Inspect in Browser</button>
+        </div>
+      </div>
+      <div class="card" style="border-color: var(--brand);">
+        <span class="badge b-pass" style="margin-bottom:10px;">AFTER · TAGGED ISO 14289-1 PDF/UA-1</span>
+        <h3>TagFrame PDF/UA-1 Reference Output (63 KB)</h3>
+        <p style="margin-bottom:14px;">Compiled via Typst <code>ua-1</code>: 5× smaller, live embedded Type0 fonts with <code>/ToUnicode</code>, semantic <code>H1/H2/P/L/Table/TH/TD/Link</code> tree, explicit <code>/Figure</code> + <code>/Alt</code>, <code>/Lang en-US</code>, and <code>pdfuaid:part=1</code>.</p>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;">
+          <a href="./samples/sample_after_tagframe_pdfua1.pdf" download class="btn btn-primary btn-sm">Download After PDF/UA-1</a>
+          <button type="button" class="btn btn-outline btn-sm js-trigger-after">Inspect in Browser</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="content-sec" id="plugin">
+    <h2>Source-Level Figma Design &amp; Figma Slides Plugin</h2>
+    <p class="lead">Remediating exported PDFs in Acrobat Pro or axesPDF breaks the moment a client edits one word in Figma. Storing semantic tags directly inside your <code>.fig</code> file ends the rework loop.</p>
+    <div class="grid-3">
+      <div class="card">
+        <h3>1. Persistent Tags Inside <code>.fig</code></h3>
+        <p>Assign <code>H1–H6</code>, <code>P</code>, <code>Table</code>, <code>Figure</code> + <code>Alt</code>, <code>Artifact</code>, and reading order once via <code>node.setPluginData()</code>. Edit a typo next week → re-export valid PDF/UA-1 in 3 seconds.</p>
+      </div>
+      <div class="card">
+        <h3>2. Figma Design + Figma Slides</h3>
+        <p>One plugin supporting <code>["figma", "slides"]</code> with built-in WCAG AA contrast &amp; heading-skip Dry-Run Preflight before export.</p>
+      </div>
+      <div class="card">
+        <h3>3. Stateless In-RAM Compiler</h3>
+        <p>Zero client PDFs or designs are ever stored on server disk (GDPR-clean for EU agencies and public-sector teams).</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="content-sec" id="founding">
+    <div class="founding-box">
+      <div>
+        <span class="badge b-pass" style="margin-bottom:12px;">100% ASYNC VALIDATION · NO SALES CALLS</span>
+        <h2 style="color:#ffffff;margin-bottom:10px;">Submit 1 non-confidential <code>.fig</code> link or reserve Founding Access ($79 Year 1).</h2>
+        <p>We are stress-testing real agency decks, brochures, and Figma Slides files asynchronously over email before publishing v1 to Figma Community.</p>
+        <ul>
+          <li>Zero Zoom calls or sales demos — everything async over email</li>
+          <li>Founding Access locked at $79 for Year 1 (regular Pro $149/yr, Agency 5-seat $399/yr)</li>
+          <li>100% refund guarantee if v1 doesn't ship within 6 weeks or fails PDF/UA-1 validation</li>
+          <li>EU/global VAT invoicing via Merchant of Record (Paddle)</li>
+        </ul>
+      </div>
+
+      <form id="lead-form" class="lead-form">
+        <div>
+          <label for="lead-email">Work or Personal Email *</label>
+          <input id="lead-email" name="email" type="email" required placeholder="alex@agency.eu" />
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+          <div>
+            <label for="lead-team">Team Type</label>
+            <select id="lead-team" name="team_type">
+              <option value="Design Agency">Design Agency</option>
+              <option value="SaaS / Product Team">SaaS / Product Team</option>
+              <option value="Public Sector / University">Public Sector / University</option>
+              <option value="Accessibility Specialist">Accessibility Specialist</option>
+              <option value="Solo Designer">Solo Designer</option>
+            </select>
+          </div>
+          <div>
+            <label for="lead-intent">Request Type</label>
+            <select id="lead-intent" name="intent">
+              <option value="sample_test">Free 24–48h .fig Conversion Test</option>
+              <option value="founding_access">Reserve Founding Spot ($79/yr)</option>
+              <option value="both">Both (Test Sample + Founding Spot)</option>
+            </select>
+          </div>
+        </div>
+        <div>
+          <label for="lead-url">Optional View-Only Figma / Slides Link</label>
+          <input id="lead-url" name="figma_url" type="url" placeholder="https://www.figma.com/design/..." />
+        </div>
+        <div>
+          <label for="lead-notes">Fonts / Biggest PDF/UA Pain Point (Optional)</label>
+          <textarea id="lead-notes" name="notes" rows="2" placeholder="e.g. Custom brand .otf font, multi-column EAA annual report, Figma Slides tables..."></textarea>
+        </div>
+        <button id="lead-submit-btn" type="submit" class="btn btn-primary" style="width:100%;">Submit Async Request (No Calls)</button>
+        <div id="lead-status" class="lead-status" role="status"></div>
+      </form>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="container" style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:12px;">
+    <div><strong>TagFrame PDF/UA</strong> · Independent Accessibility Tooling (2026)</div>
+    <div>Zero analytics cookies · Zero server PDF retention · Browser inspector runs 100% locally</div>
+  </div>
+</footer>
+
+<script type="module">
+  import { inspectPdfUa } from "./pdfua_inspector.js";
+
+  let lastReport = null;
+
+  function formatBytes(b) {
+    if (b < 1024) return `${b} B`;
+    if (b < 1048576) return `${(b / 1024).toFixed(1)} KB`;
+    return `${(b / 1048576).toFixed(2)} MB`;
+  }
+
+  function escapeHtml(s) {
+    return String(s).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
+  }
+
+  function renderReport(report) {
+    lastReport = report;
+    const sec = document.getElementById("report-section");
+    const banner = document.getElementById("verdict-banner");
+    const vTitle = document.getElementById("verdict-title");
+    const vMeta = document.getElementById("verdict-meta");
+    const kpiGrid = document.getElementById("kpi-grid");
+    const tbody = document.getElementById("checks-tbody");
+    const tagCloud = document.getElementById("tag-cloud");
+    const figList = document.getElementById("figure-list");
+    const structBox = document.getElementById("structure-details");
+
+    sec.style.display = "block";
+    banner.className = "verdict-banner";
+
+    if (!report.ok) {
+      banner.classList.add("verdict-fail");
+      vTitle.textContent = `CANNOT INSPECT — ${report.filename}`;
+      vMeta.textContent = report.error;
+      kpiGrid.innerHTML = "";
+      tbody.innerHTML = "";
+      structBox.style.display = "none";
+      sec.scrollIntoView({ behavior: "smooth", block: "start" });
+      return;
+    }
+
+    structBox.style.display = "block";
+    if (report.verdict === "PASS") {
+      banner.classList.add("verdict-pass");
+      vTitle.textContent = `PASS — ${report.summary.pass}/${report.summary.totalChecked} ISO 14289-1 Machine Checks Passed`;
+    } else if (report.verdict === "WARN") {
+      banner.classList.add("verdict-warn");
+      vTitle.textContent = `WARNINGS — ${report.summary.warn} Warning(s), 0 Hard Failures`;
+    } else {
+      banner.classList.add("verdict-fail");
+      vTitle.textContent = `FAIL — ${report.summary.fail} ISO 14289-1 Failure(s) Detected`;
+    }
+
+    vMeta.textContent = `${report.filename} · ${formatBytes(report.fileSizeBytes)} · PDF ${report.pdfVersion} · ${report.pageCount} page(s) · Source: ${report.detectedTool}`;
+
+    const m = report.metrics;
+    kpiGrid.innerHTML = `
+      <div class="kpi"><div class="kpi-label">Live Fonts (/ToUnicode)</div><div class="kpi-val">${m.fontCount} (${m.fontsWithToUnicode}/${m.fontCount})</div></div>
+      <div class="kpi"><div class="kpi-label">Structure Elements</div><div class="kpi-val">${m.totalStructElems}</div></div>
+      <div class="kpi"><div class="kpi-label">Document /Lang</div><div class="kpi-val">${escapeHtml(m.docLang || "Missing")}</div></div>
+      <div class="kpi"><div class="kpi-label">XMP pdfuaid:part=1</div><div class="kpi-val">${m.hasPdfUaPart1 ? "Present" : "Missing"}</div></div>
+    `;
+
+    const badgeClass = (st) => st === "PASS" ? "b-pass" : st === "FAIL" ? "b-fail" : st === "WARN" ? "b-warn" : "b-info";
+    tbody.innerHTML = report.checks.map((c) => `
+      <tr>
+        <td><span class="badge ${badgeClass(c.status)}">${c.status}</span></td>
+        <td><strong>${escapeHtml(c.name)}</strong><div style="font-size:0.75rem;font-family:var(--mono);color:var(--muted);margin-top:2px;">${c.severity}</div></td>
+        <td>${escapeHtml(c.detail)}</td>
+      </tr>`).join("");
+
+    const tagEntries = Object.entries(m.tagCounts).sort((a, b) => b[1] - a[1]);
+    tagCloud.innerHTML = tagEntries.length === 0
+      ? `<span class="badge b-fail">0 semantic tags found (/StructTreeRoot absent)</span>`
+      : tagEntries.map(([tag, count]) => `<span class="tag-chip">/${escapeHtml(tag)} <strong>(${count})</strong></span>`).join("");
+
+    if (m.figures.length > 0) {
+      figList.innerHTML =
+        `<strong>Detected /Figure Alt Descriptions (${m.figures.length}):</strong><ul style="margin:6px 0 0 18px;">` +
+        m.figures.map((f, i) => f.hasAlt
+          ? `<li>Figure #${i + 1}: <code>"${escapeHtml(f.alt)}"</code></li>`
+          : `<li style="color:var(--fail-ink);"><strong>Figure #${i + 1}: MISSING /Alt TEXT</strong></li>`).join("") +
+        `</ul>`;
+    } else {
+      figList.textContent = m.totalStructElems > 0
+        ? "No /Figure tags found in structure tree."
+        : "No structure tree present — figures, tables, and headings cannot be read by assistive technology.";
+    }
+    sec.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }
+
+  async function inspectFile(file) {
+    const buf = await file.arrayBuffer();
+    renderReport(await inspectPdfUa(new Uint8Array(buf), file.name));
+  }
+
+  async function loadSample(relPath, labelName) {
+    try {
+      const resp = await fetch(relPath);
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      renderReport(await inspectPdfUa(new Uint8Array(await resp.arrayBuffer()), labelName));
+    } catch (err) {
+      renderReport({ ok: false, filename: labelName, error: `Could not fetch sample PDF (${err.message}).` });
+    }
+  }
+
+  async function runLiveApiCompileDemo() {
+    const btn = document.getElementById("live-compile-btn");
+    const orig = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = "Compiling live PDF/UA-1...";
+    try {
+      const sampleScene = {
+        title: "Live API Compiled Figma Slide Deck",
+        lang: "en-US",
+        frames: [
+          {
+            id: "slide-1",
+            name: "Cover & Summary",
+            width: 960,
+            height: 540,
+            backgroundColor: "#F8FAFC",
+            nodes: [
+              { id: "n0", role: "Artifact", color: "#0F766E", readingOrder: 0 },
+              { id: "n1", role: "H1", text: "Live Compiled Accessible Deck (ISO 14289-1)", fontSize: 28, color: "#0F172A", readingOrder: 1 },
+              { id: "n2", role: "P", text: "This PDF/UA-1 binary was just compiled statelessly in RAM from structured Figma scene JSON via POST /api/compile and verified locally in your browser.", fontSize: 14, color: "#334155", readingOrder: 2 },
+              { id: "n3", role: "H2", text: "Key Structural Guarantees", fontSize: 18, color: "#0F172A", readingOrder: 3 },
+              { id: "n4", role: "List", items: ["Embedded live fonts with /ToUnicode CMap", "Persistent node.setPluginData roles survive Figma edits", "Stateless RAM-only compilation (zero disk storage)"], fontSize: 13, readingOrder: 4 },
+              { id: "n5", role: "Figure", text: "Figma Scene JSON -> Stateless Typst UA-1 -> Verified PDF/UA-1", alt: "Three-stage pipeline diagram from Figma Scene JSON through stateless Typst PDF/UA-1 compiler to verified accessible PDF.", readingOrder: 5 },
+              { id: "n6", role: "Table", headers: ["Check", "Status"], rows: [["XMP pdfuaid:part=1", "Present"], ["Embedded /ToUnicode", "Verified"]], readingOrder: 6 },
+              { id: "n7", role: "Link", text: "ISO 14289-1 Specification", url: "https://www.iso.org/standard/64599.html", readingOrder: 7 }
+            ]
+          }
+        ]
+      };
+      const res = await fetch("./api/compile", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(sampleScene),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      const ms = res.headers.get("X-TagFrame-Compile-Ms") || "?";
+      const pdfBuf = new Uint8Array(await res.arrayBuffer());
+      const report = await inspectPdfUa(pdfBuf, `live_api_compiled_${ms}ms_pdfua1.pdf`);
+      renderReport(report);
+    } catch (err) {
+      renderReport({ ok: false, filename: "live_api_compile.pdf", error: `Live API compile failed: ${err.message}` });
+    } finally {
+      btn.disabled = false;
+      btn.textContent = orig;
+    }
+  }
+
+  // Event wiring
+  const dropzone = document.getElementById("dropzone");
+  const fileInput = document.getElementById("file-input");
+  document.getElementById("browse-btn").addEventListener("click", (e) => { e.stopPropagation(); fileInput.click(); });
+  dropzone.addEventListener("click", () => fileInput.click());
+  dropzone.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); fileInput.click(); } });
+  dropzone.addEventListener("dragover", (e) => { e.preventDefault(); dropzone.classList.add("dragover"); });
+  dropzone.addEventListener("dragleave", () => dropzone.classList.remove("dragover"));
+  dropzone.addEventListener("drop", (e) => { e.preventDefault(); dropzone.classList.remove("dragover"); const f = e.dataTransfer.files?.[0]; if (f) inspectFile(f); });
+  fileInput.addEventListener("change", () => { const f = fileInput.files?.[0]; if (f) inspectFile(f); fileInput.value = ""; });
+
+  const runBefore = () => loadSample("./samples/sample_before_figma_style_untagged.pdf", "sample_before_figma_style_untagged.pdf");
+  const runAfter = () => loadSample("./samples/sample_after_tagframe_pdfua1.pdf", "sample_after_tagframe_pdfua1.pdf");
+  document.getElementById("load-before-btn").addEventListener("click", runBefore);
+  document.getElementById("load-after-btn").addEventListener("click", runAfter);
+  document.getElementById("live-compile-btn").addEventListener("click", runLiveApiCompileDemo);
+  document.querySelectorAll(".js-trigger-before").forEach((el) => el.addEventListener("click", runBefore));
+  document.querySelectorAll(".js-trigger-after").forEach((el) => el.addEventListener("click", runAfter));
+  document.getElementById("reset-btn").addEventListener("click", () => { document.getElementById("report-section").style.display = "none"; lastReport = null; dropzone.focus(); });
+  document.getElementById("copy-json-btn").addEventListener("click", async (e) => {
+    if (!lastReport) return;
+    await navigator.clipboard.writeText(JSON.stringify(lastReport, null, 2));
+    const btn = e.currentTarget; const orig = btn.textContent; btn.textContent = "Copied JSON!";
+    setTimeout(() => (btn.textContent = orig), 1600);
+  });
+
+  const GITHUB_REPO = "maki357/tagframe-pdfua";
+  let apiAvailable = false;
+
+  // Auto-detect whether FastAPI backend (/api/health) is running or hosted statically (GitHub Pages)
+  (async function detectRuntimeMode() {
+    if (location.protocol === "file:" || location.hostname.endsWith(".github.io")) {
+      apiAvailable = false;
+      return;
+    }
+    try {
+      const r = await fetch("./api/health", { cache: "no-store" });
+      if (r.ok) {
+        const j = await r.json();
+        if (j && j.status === "ok") {
+          apiAvailable = true;
+          document.getElementById("live-compile-btn").style.display = "inline-flex";
+        }
+      }
+    } catch {
+      apiAvailable = false;
+    }
+  })();
+
+  // Real Async Lead Form -> POST /api/leads (when API is running) OR Pre-filled GitHub Issue (static GitHub Pages)
+  document.getElementById("lead-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const btn = document.getElementById("lead-submit-btn");
+    const status = document.getElementById("lead-status");
+    const form = e.currentTarget;
+    btn.disabled = true;
+    btn.textContent = "Submitting...";
+    status.style.display = "none";
+
+    const body = {
+      email: form.email.value.trim(),
+      team_type: form.team_type.value,
+      intent: form.intent.value,
+      figma_url: form.figma_url.value.trim(),
+      notes: form.notes.value.trim(),
+    };
+
+    try {
+      if (apiAvailable) {
+        const res = await fetch("./api/leads", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || `HTTP ${res.status}`);
+        status.className = "lead-status lead-ok";
+        status.textContent = `Saved (${data.id}). We will follow up asynchronously by email within 24–48h.`;
+        status.style.display = "block";
+        form.reset();
+      } else {
+        const intentLabel = body.intent === "founding_access" ? "Founding Access ($79/yr)" : body.intent === "both" ? "Sample Test + Founding Access" : "Free .fig Conversion Test";
+        const issueTitle = `[Async ${intentLabel}] ${body.team_type}`;
+        const issueBody = [
+          `**Request Type:** ${intentLabel}`,
+          `**Team Type:** ${body.team_type}`,
+          `**Contact (optional — remove if you prefer GitHub reply only):** ${body.email}`,
+          `**Non-confidential Figma / Slides Link:** ${body.figma_url || "(will attach or paste below)"}`,
+          `**Fonts / Notes:** ${body.notes || "(none)"}`,
+          ``,
+          `*(100% async — zero calls. Remove your email above if you prefer replies directly in this GitHub thread.)*`,
+        ].join("\n");
+        const ghUrl = `https://github.com/${GITHUB_REPO}/issues/new?title=${encodeURIComponent(issueTitle)}&body=${encodeURIComponent(issueBody)}`;
+        window.open(ghUrl, "_blank", "noopener,noreferrer");
+        status.className = "lead-status lead-ok";
+        status.textContent = "Opened pre-filled async request on GitHub (";
+        const link = document.createElement("a");
+        link.href = ghUrl;
+        link.target = "_blank";
+        link.rel = "noopener noreferrer";
+        link.style.color = "#6ee7b7";
+        link.textContent = "click here if popup was blocked";
+        status.appendChild(link);
+        status.appendChild(document.createTextNode("). Zero calls needed."));
+        status.style.display = "block";
+      }
+    } catch (err) {
+      status.className = "lead-status lead-err";
+      status.textContent = `Could not submit: ${err.message}`;
+      status.style.display = "block";
+    } finally {
+      btn.disabled = false;
+      btn.textContent = "Submit Async Request (No Calls)";
+    }
+  });
+</script>
+</body>
+</html>

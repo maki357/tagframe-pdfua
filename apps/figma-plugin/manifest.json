@@ -1,0 +1,19 @@
+{
+  "name": "TagFrame PDF/UA — Accessible PDF/UA-1 Exporter",
+  "id": "tagframe-pdfua-dev-v1",
+  "api": "1.0.0",
+  "main": "dist/code.js",
+  "ui": "src/ui.html",
+  "editorType": ["figma", "slides"],
+  "documentAccess": "dynamic-page",
+  "networkAccess": {
+    "allowedDomains": [
+      "https://tagframe-pdfua-production.up.railway.app"
+    ],
+    "devAllowedDomains": [
+      "http://127.0.0.1:8080",
+      "http://localhost:8080"
+    ],
+    "reasoning": "Sends structured semantic scene metadata to the stateless in-RAM TagFrame PDF/UA-1 compiler and returns a validated ISO 14289-1 PDF binary."
+  }
+}

@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>TagFrame PDF/UA</title>
+  <style>
+    :root {
+      --bg: #f8fafc; --surface: #ffffff; --border: #cbd5e1;
+      --ink: #0f172a; --muted: #475569; --brand: #0f766e;
+      --pass-bg: #dcfce7; --pass-ink: #14532d;
+      --fail-bg: #fee2e2; --fail-ink: #7f1d1d;
+      --warn-bg: #fef3c7; --warn-ink: #78350f;
+      --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, sans-serif;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: var(--bg); color: var(--ink); font-family: var(--sans); font-size: 12px; padding: 12px; }
+    h1 { font-size: 14px; font-weight: 800; margin-bottom: 4px; }
+    .sub { color: var(--muted); font-size: 11px; margin-bottom: 12px; }
+    .row { display: flex; gap: 8px; margin-bottom: 8px; }
+    label { display: block; font-size: 10px; font-family: var(--mono); color: var(--muted); margin-bottom: 3px; text-transform: uppercase; }
+    input, select {
+      width: 100%; padding: 6px 8px; border: 1px solid var(--border); border-radius: 6px;
+      background: var(--surface); font-size: 12px; color: var(--ink);
+    }
+    .btn {
+      width: 100%; padding: 9px 12px; border-radius: 7px; font-weight: 700; font-size: 12px;
+      border: 1px solid transparent; cursor: pointer;
+    }
+    .btn-primary { background: var(--brand); color: #fff; }
+    .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-outline { background: var(--surface); color: var(--ink); border-color: var(--border); }
+    .preflight { border-radius: 8px; padding: 10px; margin: 10px 0; font-size: 11px; }
+    .pf-pass { background: var(--pass-bg); color: var(--pass-ink); }
+    .pf-fail { background: var(--fail-bg); color: var(--fail-ink); }
+    .node-card {
+      background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+      padding: 8px; margin-bottom: 8px;
+    }
+    .node-head { display: flex; justify-content: space-between; align-items: center; gap: 6px; margin-bottom: 6px; }
+    .node-name { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .mini-btn { padding: 2px 6px; font-size: 11px; border: 1px solid var(--border); border-radius: 4px; background: var(--bg); cursor: pointer; }
+    #status { margin-top: 8px; font-family: var(--mono); font-size: 11px; color: var(--muted); }
+  </style>
+</head>
+<body>
+  <h1>TagFrame PDF/UA</h1>
+  <div class="sub">Persistent ISO 14289-1 tags stored in your <code>.fig</code> file.</div>
+
+  <div class="row">
+    <div style="flex:2;">
+      <label for="doc-title">Document Title</label>
+      <input id="doc-title" type="text" value="" />
+    </div>
+    <div style="flex:1;">
+      <label for="doc-lang">/Lang</label>
+      <input id="doc-lang" type="text" value="en-US" />
+    </div>
+  </div>
+
+  <div class="row">
+    <button id="rescan-btn" class="btn btn-outline" style="flex:1;">Re-scan Selection</button>
+    <button id="export-btn" class="btn btn-primary" style="flex:1.6;">Export PDF/UA-1</button>
+  </div>
+
+  <div id="preflight-box" class="preflight pf-pass">Scanning selected frames...</div>
+  <div id="nodes-container"></div>
+  <div id="status"></div>
+
+  <script>
+    const API_BASE_URL = "https://tagframe-pdfua-production.up.railway.app";
+    const ROLES = ["H1","H2","H3","H4","H5","H6","P","List","Link","Table","Figure","Artifact"];
+    let latestScene = null;
+    let latestPreflight = null;
+
+    function post(msg) { parent.postMessage({ pluginMessage: msg }, "*"); }
+
+    function render(scene, preflight) {
+      latestScene = scene;
+      latestPreflight = preflight;
+      document.getElementById("doc-title").value = scene.title || "";
+      document.getElementById("doc-lang").value = scene.lang || "en-US";
+
+      const pfBox = document.getElementById("preflight-box");
+      const exportBtn = document.getElementById("export-btn");
+      exportBtn.disabled = !preflight.canExport;
+
+      if (preflight.canExport) {
+        pfBox.className = "preflight pf-pass";
+        pfBox.innerHTML = `<strong>Dry-Run Preflight PASS</strong> · ${scene.frames.length} frame(s) · ${preflight.warnings.length} warning(s)`;
+      } else {
+        pfBox.className = "preflight pf-fail";
+        pfBox.innerHTML =
+          `<strong>Dry-Run Blocked (${preflight.errors.length} error(s)):</strong><ul style="margin:4px 0 0 14px;">` +
+          preflight.errors.map(e => `<li>${e.message}</li>`).join("") +
+          `</ul>`;
+      }
+
+      const container = document.getElementById("nodes-container");
+      container.innerHTML = "";
+      for (const frame of scene.frames) {
+        const hdr = document.createElement("div");
+        hdr.style.cssText = "font-family:var(--mono);font-size:10px;color:var(--muted);margin:10px 0 5px;text-transform:uppercase;";
+        hdr.textContent = `Frame: ${frame.name} (${frame.nodes.length} nodes)`;
+        container.appendChild(hdr);
+
+        frame.nodes.forEach((n, idx) => {
+          const card = document.createElement("div");
+          card.className = "node-card";
+          const roleOpts = ROLES.map(r => `<option value="${r}" ${r === n.role ? "selected" : ""}>${r}</option>`).join("");
+          card.innerHTML = `
+            <div class="node-head">
+              <span class="node-name">#${idx + 1} · ${n.name}</span>
+              <div style="display:flex;gap:4px;">
+                <button class="mini-btn js-up" title="Move up">↑</button>
+                <button class="mini-btn js-down" title="Move down">↓</button>
+              </div>
+            </div>
+            <div class="row" style="margin-bottom:4px;">
+              <select class="js-role" style="flex:1;">${roleOpts}</select>
+            </div>
+            ${n.role === "Figure" ? `<input class="js-alt" placeholder="Required Alt text for screen readers..." value="${(n.alt || "").replace(/"/g, "&quot;")}" />` : ""}
+          `;
+          card.querySelector(".js-role").addEventListener("change", (e) => {
+            post({ type: "UPDATE_NODE_META", nodeId: n.id, role: e.target.value });
+          });
+          const altInput = card.querySelector(".js-alt");
+          if (altInput) {
+            altInput.addEventListener("change", (e) => {
+              post({ type: "UPDATE_NODE_META", nodeId: n.id, alt: e.target.value });
+            });
+          }
+          card.querySelector(".js-up").addEventListener("click", () => {
+            post({ type: "UPDATE_NODE_META", nodeId: n.id, readingOrder: Math.max(0, n.readingOrder - 2) });
+          });
+          card.querySelector(".js-down").addEventListener("click", () => {
+            post({ type: "UPDATE_NODE_META", nodeId: n.id, readingOrder: n.readingOrder + 2 });
+          });
+          container.appendChild(card);
+        });
+      }
+    }
+
+    document.getElementById("rescan-btn").addEventListener("click", () => {
+      post({
+        type: "RESCAN",
+        title: document.getElementById("doc-title").value,
+        lang: document.getElementById("doc-lang").value,
+      });
+    });
+
+    document.getElementById("export-btn").addEventListener("click", async () => {
+      if (!latestScene || !latestPreflight?.canExport) return;
+      const statusEl = document.getElementById("status");
+      statusEl.textContent = "Compiling ISO 14289-1 PDF/UA-1 in RAM...";
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/compile`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            ...latestScene,
+            title: document.getElementById("doc-title").value,
+            lang: document.getElementById("doc-lang").value,
+          }),
+        });
+        if (!res.ok) throw new Error(await res.text());
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `${(latestScene.title || "export").replace(/[^a-z0-9_-]/gi, "_")}_pdfua1.pdf`;
+        a.click();
+        URL.revokeObjectURL(url);
+        statusEl.textContent = `PASS — Exported ${res.headers.get("X-TagFrame-Standard") || "PDF/UA-1"} in ${res.headers.get("X-TagFrame-Compile-Ms") || "?"}ms.`;
+      } catch (err) {
+        statusEl.textContent = `Export failed: ${err.message}`;
+      }
+    });
+
+    window.onmessage = (event) => {
+      const msg = event.data.pluginMessage;
+      if (msg && msg.type === "SCAN_RESULT") {
+        render(msg.scene, msg.preflight);
+      }
+    };
+  </script>
+</body>
+</html>

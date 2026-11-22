@@ -1,0 +1,31 @@
+name: CI — State-Machine, Plugin Engine & E2E PDF/UA-1 Tests
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install system fonts and Python deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends fonts-dejavu-core fonts-liberation
+          pip install -r apps/api/requirements.txt httpx
+      - name: Run Python API & State-Machine tests
+        run: python tests/test_api_and_state_machine.py
+      - name: Build Figma Plugin & Run Inspector + E2E PDF/UA-1 tests
+        run: |
+          node apps/figma-plugin/scripts/build.mjs
+          node --check apps/figma-plugin/dist/code.js
+          node tests/pdfua_inspector.test.mjs
+          node tests/test_plugin_engine_and_e2e.mjs
