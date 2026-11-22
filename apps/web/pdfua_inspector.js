@@ -282,11 +282,13 @@ function extractAllRefs(token) {
 function scanTopLevelObjects(bytes) {
   const latin1 = bytesToLatin1(bytes);
   const objects = new Map();
+  const objStms = [];
   const objHeaderRe = /(?:^|[\r\n\s])(\d+)\s+(\d+)\s+obj(?=[\s<\[\/(])/g;
 
   let m;
   while ((m = objHeaderRe.exec(latin1)) !== null) {
     const objNum = Number(m[1]);
+    const byteOffset = m.index;
     let bodyStart = m.index + m[0].length;
     while (bodyStart < latin1.length && /\s/.test(latin1[bodyStart])) bodyStart++;
 
@@ -333,13 +335,18 @@ function scanTopLevelObjects(bytes) {
         objEnd = endObjIdx === -1 ? latin1.length : endObjIdx;
       }
 
-      objects.set(objNum, {
+      const entry = {
         objNum,
         dictText,
         dict: dictMap,
         rawText: dictText,
         streamBytes: bytes.subarray(streamStart, streamEnd),
-      });
+        byteOffset,
+      };
+      objects.set(objNum, entry);
+      if (dictMap.get("/Type") === "/ObjStm") {
+        objStms.push(entry);
+      }
       objHeaderRe.lastIndex = objEnd + 6;
     } else {
       const endObjIdx = latin1.indexOf("endobj", dictEnd);
@@ -351,25 +358,25 @@ function scanTopLevelObjects(bytes) {
         dict: dictText ? parseDict(dictText) : rawText.startsWith("<<") ? parseDict(extractBalanced(rawText, 0).text) : new Map(),
         rawText,
         streamBytes: null,
+        byteOffset,
       });
       objHeaderRe.lastIndex = objEnd + 6;
     }
   }
 
-  return { latin1, objects };
+  return { latin1, objects, objStms };
 }
 
 /**
- * Unpack PDF 1.5+ compressed Object Streams (`/Type /ObjStm`) into the `objects` map.
+ * Unpack PDF 1.5+ compressed Object Streams (`/Type /ObjStm`) into the `objects` map,
+ * preserving incremental-update precedence by keeping the highest byte offset per object number.
  */
-async function unpackObjectStreams(objects) {
+async function unpackObjectStreams(objects, discoveredObjStms = null) {
   let unpackedCount = 0;
-  const objStms = [];
-  for (const obj of objects.values()) {
-    if (obj.dict.get("/Type") === "/ObjStm" && obj.streamBytes) {
-      objStms.push(obj);
-    }
-  }
+  const objStms = Array.isArray(discoveredObjStms)
+    ? [...discoveredObjStms]
+    : Array.from(objects.values()).filter((obj) => obj.dict.get("/Type") === "/ObjStm" && obj.streamBytes);
+  objStms.sort((a, b) => (a.byteOffset ?? 0) - (b.byteOffset ?? 0));
 
   for (const stm of objStms) {
     const filter = stm.dict.get("/Filter") || "";
@@ -387,13 +394,17 @@ async function unpackObjectStreams(objects) {
     const nums = header.split(/\s+/).map(Number);
     if (nums.length < n * 2) continue;
 
+    const stmOffset = stm.byteOffset ?? 0;
     for (let i = 0; i < n; i++) {
       const childNum = nums[i * 2];
       const relOffset = nums[i * 2 + 1];
       const nextRelOffset = i + 1 < n ? nums[(i + 1) * 2 + 1] : text.length - first;
       const rawText = text.slice(first + relOffset, first + nextRelOffset).trim();
       const dictText = rawText.startsWith("<<") ? extractBalanced(rawText, 0).text : "";
-      if (!objects.has(childNum)) {
+      const existing = objects.get(childNum);
+      // Keep whichever definition appears later in the PDF byte stream (incremental updates win;
+      // earlier /ObjStm entries never clobber newer top-level or later-/ObjStm updates).
+      if (!existing || stmOffset >= (existing.byteOffset ?? -1)) {
         objects.set(childNum, {
           objNum: childNum,
           dictText,
@@ -401,6 +412,7 @@ async function unpackObjectStreams(objects) {
           rawText,
           streamBytes: null,
           fromObjStm: true,
+          byteOffset: stmOffset,
         });
         unpackedCount++;
       }
@@ -445,7 +457,7 @@ export async function inspectPdfUa(inputBytes, filename = "document.pdf") {
   }
   const pdfVersion = versionMatch[1];
 
-  const { latin1, objects } = scanTopLevelObjects(bytes);
+  const { latin1, objects, objStms } = scanTopLevelObjects(bytes);
 
   // Check encryption first
   const isEncrypted =
@@ -462,19 +474,28 @@ export async function inspectPdfUa(inputBytes, filename = "document.pdf") {
     };
   }
 
-  const unpackedObjStmCount = await unpackObjectStreams(objects);
+  const unpackedObjStmCount = await unpackObjectStreams(objects, objStms);
 
-  // Locate Catalog (/Type /Catalog) and Info dictionary
+  // Locate Catalog (/Type /Catalog) preferring the latest /Root reference or highest byteOffset Catalog
   let catalog = null;
-  for (const obj of objects.values()) {
-    if (obj.dict.get("/Type") === "/Catalog") {
-      catalog = obj;
-      break;
+  const rootMatches = [...latin1.matchAll(/\/Root\s+(\d+)\s+\d+\s+R/g)];
+  if (rootMatches.length > 0) {
+    const latestRootNum = Number(rootMatches[rootMatches.length - 1][1]);
+    const cand = objects.get(latestRootNum);
+    if (cand && cand.dict.get("/Type") === "/Catalog") {
+      catalog = cand;
+    } else if (cand) {
+      catalog = cand;
     }
   }
   if (!catalog) {
-    const rootMatch = latin1.match(/\/Root\s+(\d+)\s+\d+\s+R/);
-    if (rootMatch) catalog = objects.get(Number(rootMatch[1])) || null;
+    for (const obj of objects.values()) {
+      if (obj.dict.get("/Type") === "/Catalog") {
+        if (!catalog || (obj.byteOffset ?? -1) >= (catalog.byteOffset ?? -1)) {
+          catalog = obj;
+        }
+      }
+    }
   }
 
   let infoDict = new Map();

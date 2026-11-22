@@ -162,7 +162,7 @@
             <thead>
               <tr>
                 <th style="width:110px;">Status</th>
-                <th style="width:270px;">ISO 14289-1 Machine Check</th>
+                <th style="width:270px;">Core PDF/UA-1 Structural Check</th>
                 <th>Measured Evidence</th>
               </tr>
             </thead>
@@ -199,7 +199,7 @@
       <div class="card" style="border-color: var(--brand);">
         <span class="badge b-pass" style="margin-bottom:10px;">AFTER · TAGGED ISO 14289-1 PDF/UA-1</span>
         <h3>TagFrame PDF/UA-1 Reference Output (63 KB)</h3>
-        <p style="margin-bottom:14px;">Compiled via Typst <code>ua-1</code>: 5× smaller, live embedded Type0 fonts with <code>/ToUnicode</code>, semantic <code>H1/H2/P/L/Table/TH/TD/Link</code> tree, explicit <code>/Figure</code> + <code>/Alt</code>, <code>/Lang en-US</code>, and <code>pdfuaid:part=1</code>.</p>
+        <p style="margin-bottom:14px;">Compiled via Typst <code>ua-1</code>: 5× smaller, live embedded Type0 fonts with <code>/ToUnicode</code>, semantic <code>H1/H2/P/L/Table/TH/TD/Link</code> tree, explicit <code>/Figure</code> + <code>/Alt</code>, <code>/Lang en-US</code>, and <code>pdfuaid:part=1</code>. Verified in CI with official <strong>veraPDF 1.30.4</strong> (<code>-f ua1</code>: <code>106/106</code> rules passed, <code>0</code> failed).</p>
         <div style="display:flex;gap:10px;flex-wrap:wrap;">
           <a href="./samples/sample_after_tagframe_pdfua1.pdf" download class="btn btn-primary btn-sm">Download After PDF/UA-1</a>
           <button type="button" class="btn btn-outline btn-sm js-trigger-after">Inspect in Browser</button>
@@ -242,9 +242,9 @@
       </div>
 
       <form id="lead-form" class="lead-form">
-        <div>
+        <div id="lead-email-wrap" style="display:none;">
           <label for="lead-email">Work or Personal Email *</label>
-          <input id="lead-email" name="email" type="email" required placeholder="alex@agency.eu" />
+          <input id="lead-email" name="email" type="email" disabled placeholder="alex@agency.eu" />
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
           <div>
@@ -267,14 +267,17 @@
           </div>
         </div>
         <div>
-          <label for="lead-url">Optional View-Only Figma / Slides Link</label>
+          <label for="lead-url">Optional Public / Non-Confidential Figma Link</label>
           <input id="lead-url" name="figma_url" type="url" placeholder="https://www.figma.com/design/..." />
         </div>
         <div>
           <label for="lead-notes">Fonts / Biggest PDF/UA Pain Point (Optional)</label>
           <textarea id="lead-notes" name="notes" rows="2" placeholder="e.g. Custom brand .otf font, multi-column EAA annual report, Figma Slides tables..."></textarea>
         </div>
-        <button id="lead-submit-btn" type="submit" class="btn btn-primary" style="width:100%;">Submit Async Request (No Calls)</button>
+        <div id="static-gdpr-notice" style="font-size:0.8rem;line-height:1.45;padding:9px 11px;border-radius:8px;background:rgba(251,191,36,0.12);border:1px solid #d97706;color:#fde68a;">
+          <strong>Privacy Notice (GDPR):</strong> Static mode opens a <strong>public</strong> GitHub request — never paste private emails or confidential client links; for private <code>.fig</code> files, DM on Figma Forum or Reddit.
+        </div>
+        <button id="lead-submit-btn" type="submit" class="btn btn-primary" style="width:100%;">Open Public GitHub Request (No Calls)</button>
         <div id="lead-status" class="lead-status" role="status"></div>
       </form>
     </div>
@@ -332,13 +335,13 @@
     structBox.style.display = "block";
     if (report.verdict === "PASS") {
       banner.classList.add("verdict-pass");
-      vTitle.textContent = `PASS — ${report.summary.pass}/${report.summary.totalChecked} ISO 14289-1 Machine Checks Passed`;
+      vTitle.textContent = `PASS — ${report.summary.pass}/${report.summary.totalChecked} Core PDF/UA-1 Structural Preflight Checks Passed`;
     } else if (report.verdict === "WARN") {
       banner.classList.add("verdict-warn");
       vTitle.textContent = `WARNINGS — ${report.summary.warn} Warning(s), 0 Hard Failures`;
     } else {
       banner.classList.add("verdict-fail");
-      vTitle.textContent = `FAIL — ${report.summary.fail} ISO 14289-1 Failure(s) Detected`;
+      vTitle.textContent = `FAIL — ${report.summary.fail} Core PDF/UA-1 Structural Failure(s) Detected`;
     }
 
     vMeta.textContent = `${report.filename} · ${formatBytes(report.fileSizeBytes)} · PDF ${report.pdfVersion} · ${report.pageCount} page(s) · Source: ${report.detectedTool}`;
@@ -470,10 +473,33 @@
   const GITHUB_REPO = "maki357/tagframe-pdfua";
   let apiAvailable = false;
 
+  function applyLeadFormMode(isApiMode) {
+    const emailWrap = document.getElementById("lead-email-wrap");
+    const emailInput = document.getElementById("lead-email");
+    const gdprNotice = document.getElementById("static-gdpr-notice");
+    const submitBtn = document.getElementById("lead-submit-btn");
+    if (isApiMode) {
+      emailWrap.style.display = "block";
+      emailInput.disabled = false;
+      emailInput.required = true;
+      gdprNotice.style.display = "none";
+      submitBtn.textContent = "Submit Async Request (No Calls)";
+    } else {
+      emailWrap.style.display = "none";
+      emailInput.disabled = true;
+      emailInput.required = false;
+      emailInput.value = "";
+      gdprNotice.style.display = "block";
+      submitBtn.textContent = "Open Public GitHub Request (No Calls)";
+    }
+  }
+  applyLeadFormMode(false);
+
   // Auto-detect whether FastAPI backend (/api/health) is running or hosted statically (GitHub Pages)
   (async function detectRuntimeMode() {
     if (location.protocol === "file:" || location.hostname.endsWith(".github.io")) {
       apiAvailable = false;
+      applyLeadFormMode(false);
       return;
     }
     try {
@@ -483,14 +509,16 @@
         if (j && j.status === "ok") {
           apiAvailable = true;
           document.getElementById("live-compile-btn").style.display = "inline-flex";
+          applyLeadFormMode(true);
         }
       }
     } catch {
       apiAvailable = false;
+      applyLeadFormMode(false);
     }
   })();
 
-  // Real Async Lead Form -> POST /api/leads (when API is running) OR Pre-filled GitHub Issue (static GitHub Pages)
+  // Real Async Lead Form -> POST /api/leads (when API is running) OR Privacy-Safe Public GitHub Issue (static GitHub Pages)
   document.getElementById("lead-form").addEventListener("submit", async (e) => {
     e.preventDefault();
     const btn = document.getElementById("lead-submit-btn");
@@ -501,7 +529,7 @@
     status.style.display = "none";
 
     const body = {
-      email: form.email.value.trim(),
+      email: apiAvailable ? form.email.value.trim() : "",
       team_type: form.team_type.value,
       intent: form.intent.value,
       figma_url: form.figma_url.value.trim(),
@@ -524,19 +552,22 @@
       } else {
         const intentLabel = body.intent === "founding_access" ? "Founding Access ($79/yr)" : body.intent === "both" ? "Sample Test + Founding Access" : "Free .fig Conversion Test";
         const issueTitle = `[Async ${intentLabel}] ${body.team_type}`;
+        // GDPR: NEVER include any email address in the public GitHub Issue URL or body
+        const stripEmails = (txt) => String(txt || "").replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, "[redacted-email]");
+        const safeUrl = stripEmails(body.figma_url);
+        const safeNotes = stripEmails(body.notes);
         const issueBody = [
           `**Request Type:** ${intentLabel}`,
           `**Team Type:** ${body.team_type}`,
-          `**Contact (optional — remove if you prefer GitHub reply only):** ${body.email}`,
-          `**Non-confidential Figma / Slides Link:** ${body.figma_url || "(will attach or paste below)"}`,
-          `**Fonts / Notes:** ${body.notes || "(none)"}`,
+          `**Non-confidential Figma / Slides Link:** ${safeUrl || "(optional — paste a non-confidential link below, or DM on Figma Forum / Reddit for private files)"}`,
+          `**Fonts / Notes:** ${safeNotes || "(none)"}`,
           ``,
-          `*(100% async — zero calls. Remove your email above if you prefer replies directly in this GitHub thread.)*`,
+          `*(100% async — zero calls. Public GitHub thread: please do not post private emails or confidential client files here.)*`,
         ].join("\n");
         const ghUrl = `https://github.com/${GITHUB_REPO}/issues/new?title=${encodeURIComponent(issueTitle)}&body=${encodeURIComponent(issueBody)}`;
         window.open(ghUrl, "_blank", "noopener,noreferrer");
         status.className = "lead-status lead-ok";
-        status.textContent = "Opened pre-filled async request on GitHub (";
+        status.textContent = "Opened privacy-safe public GitHub request (";
         const link = document.createElement("a");
         link.href = ghUrl;
         link.target = "_blank";
@@ -544,7 +575,7 @@
         link.style.color = "#6ee7b7";
         link.textContent = "click here if popup was blocked";
         status.appendChild(link);
-        status.appendChild(document.createTextNode("). Zero calls needed."));
+        status.appendChild(document.createTextNode("). No email included; for private .fig files DM on Figma Forum or Reddit."));
         status.style.display = "block";
       }
     } catch (err) {
@@ -553,7 +584,7 @@
       status.style.display = "block";
     } finally {
       btn.disabled = false;
-      btn.textContent = "Submit Async Request (No Calls)";
+      btn.textContent = apiAvailable ? "Submit Async Request (No Calls)" : "Open Public GitHub Request (No Calls)";
     }
   });
 </script>

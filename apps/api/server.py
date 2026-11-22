@@ -169,7 +169,14 @@ def pricing_dry_run(req: PricingPreviewRequest) -> dict[str, Any]:
 async def paddle_webhook(request: Request, paddle_signature: Optional[str] = Header(default=None, alias="Paddle-Signature")) -> JSONResponse:
     raw = await request.body()
     secret = os.environ.get("PADDLE_WEBHOOK_SECRET", "").strip()
-    if secret and not verify_paddle_signature(raw, paddle_signature, secret):
+    allow_insecure = os.environ.get("TAGFRAME_ALLOW_INSECURE_TEST_WEBHOOKS", "").strip() == "1"
+    if not secret:
+        if not allow_insecure:
+            raise HTTPException(
+                status_code=503,
+                detail="Paddle webhook verification is not configured (PADDLE_WEBHOOK_SECRET unset).",
+            )
+    elif not verify_paddle_signature(raw, paddle_signature, secret):
         raise HTTPException(status_code=401, detail="Invalid Paddle-Signature.")
 
     try:

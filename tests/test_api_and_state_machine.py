@@ -58,6 +58,7 @@ class TestTagFrameApiAndStateMachine(unittest.TestCase):
         server.store = TagFrameStore(database_url="")
         os.environ["ADMIN_TOKEN"] = "test-admin-secret"
         os.environ["PADDLE_WEBHOOK_SECRET"] = "test-paddle-secret"
+        os.environ.pop("TAGFRAME_ALLOW_INSECURE_TEST_WEBHOOKS", None)
         self.client = TestClient(server.app)
 
     def _signed_headers(self, body_bytes: bytes, ts: str = "1763850000") -> dict[str, str]:
@@ -567,6 +568,48 @@ class TestTagFrameApiAndStateMachine(unittest.TestCase):
 
         after_tmpdirs = set(glob.glob(os.path.join(tempfile.gettempdir(), "tagframe_mem_*")))
         self.assertEqual(after_tmpdirs - before_tmpdirs, set(), "Ephemeral font/compile tmpdir leaked on disk!")
+
+    def test_9_paddle_webhook_fail_closed_when_secret_unset(self):
+        payload = {
+            "event_id": "evt_unconfigured_001",
+            "event_type": "subscription.activated",
+            "occurred_at": "2026-11-22T14:00:00Z",
+            "data": {
+                "id": "sub_unconf_1",
+                "status": "active",
+                "currency_code": "USD",
+                "amount_cents": 14900,
+                "customer_email": "attacker@example.com",
+                "custom_data": {"plan_tier": "agency"},
+            },
+        }
+        raw = json.dumps(payload).encode("utf-8")
+
+        # 1) Unset PADDLE_WEBHOOK_SECRET (default production safety) -> MUST fail closed with HTTP 503
+        os.environ.pop("PADDLE_WEBHOOK_SECRET", None)
+        os.environ.pop("TAGFRAME_ALLOW_INSECURE_TEST_WEBHOOKS", None)
+        r_closed = self.client.post("/api/paddle/webhook", content=raw, headers={"Content-Type": "application/json"})
+        self.assertEqual(r_closed.status_code, 503)
+
+        # 2) Explicit opt-in TAGFRAME_ALLOW_INSECURE_TEST_WEBHOOKS=1 allows test delivery when secret unset
+        os.environ["TAGFRAME_ALLOW_INSECURE_TEST_WEBHOOKS"] = "1"
+        try:
+            r_optin = self.client.post("/api/paddle/webhook", content=raw, headers={"Content-Type": "application/json"})
+            self.assertEqual(r_optin.status_code, 200)
+            self.assertEqual(r_optin.json()["action"], "APPLIED")
+        finally:
+            os.environ.pop("TAGFRAME_ALLOW_INSECURE_TEST_WEBHOOKS", None)
+
+        # 3) Configured secret + valid HMAC -> HTTP 200 (and missing/bad signature -> HTTP 401)
+        os.environ["PADDLE_WEBHOOK_SECRET"] = "test-paddle-secret"
+        payload["event_id"] = "evt_configured_002"
+        payload["data"]["id"] = "sub_conf_2"
+        raw2 = json.dumps(payload).encode("utf-8")
+        r_no_sig = self.client.post("/api/paddle/webhook", content=raw2, headers={"Content-Type": "application/json"})
+        self.assertEqual(r_no_sig.status_code, 401)
+        r_valid = self.client.post("/api/paddle/webhook", content=raw2, headers=self._signed_headers(raw2))
+        self.assertEqual(r_valid.status_code, 200)
+        self.assertEqual(r_valid.json()["action"], "APPLIED")
 
 
 if __name__ == "__main__":

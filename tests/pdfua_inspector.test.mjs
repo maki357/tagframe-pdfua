@@ -144,6 +144,68 @@ async function runTests() {
     assert.match(res.error, /50 MB/);
   });
 
+  await test("Edge Case: Incremental updates keep highest byte-offset object across top-level and /ObjStm", async () => {
+    function makeObjStmChunk(stmObjNum, entries) {
+      let body = "";
+      let header = "";
+      let offset = 0;
+      for (const [num, content] of entries) {
+        header += `${num} ${offset} `;
+        body += content + "\n";
+        offset = body.length;
+      }
+      const compressed = zlib.deflateSync(Buffer.from(header + body, "latin1"));
+      return Buffer.concat([
+        Buffer.from(
+          `${stmObjNum} 0 obj\n<< /Type /ObjStm /N ${entries.length} /First ${header.length} /Filter /FlateDecode /Length ${compressed.length} >>\nstream\n`,
+          "latin1"
+        ),
+        compressed,
+        Buffer.from(`\nendstream\nendobj\n`, "latin1"),
+      ]);
+    }
+
+    // Scenario A: Earlier top-level Catalog (unmarked, en-US) overridden by LATER compressed /ObjStm (marked, fr-FR)
+    const rev1 = Buffer.from(
+      `%PDF-1.7\n` +
+        `1 0 obj\n<< /Type /Catalog /Pages 2 0 R /Lang (en-US) >>\nendobj\n` +
+        `2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n` +
+        `3 0 obj\n<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 6 0 R >> >> /Contents 7 0 R >>\nendobj\n` +
+        `6 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>\nendobj\n` +
+        `7 0 obj\n<< /Length 22 >>\nstream\nBT /F1 12 Tf (Hi) Tj ET\nendstream\nendobj\n` +
+        `trailer\n<< /Root 1 0 R >>\n%%EOF\n`,
+      "latin1"
+    );
+    const rev2ObjStm = makeObjStmChunk(20, [
+      [1, "<< /Type /Catalog /Pages 2 0 R /Lang (fr-FR) /MarkInfo << /Marked true >> /ViewerPreferences << /DisplayDocTitle true >> /StructTreeRoot 4 0 R >>"],
+      [4, "<< /Type /StructTreeRoot /K [5 0 R] >>"],
+      [5, "<< /Type /StructElem /S /H1 /P 4 0 R >>"],
+    ]);
+    const pdfA = new Uint8Array(Buffer.concat([rev1, rev2ObjStm, Buffer.from("trailer\n<< /Root 1 0 R >>\n%%EOF\n", "latin1")]));
+    const resA = await inspectPdfUa(pdfA, "incremental_objstm_override.pdf");
+    assert.equal(resA.ok, true);
+    assert.equal(resA.metrics.docLang, "fr-FR");
+    assert.equal(resA.metrics.isMarked, true);
+    assert.equal(resA.metrics.displayDocTitle, true);
+    assert.equal(resA.metrics.tagCounts.H1, 1);
+
+    // Scenario B: Earlier /ObjStm (de-DE, H1) overridden by LATER top-level incremental update (es-ES, H2)
+    // Earlier /ObjStm MUST NOT clobber the newer top-level update!
+    const baseCompressed = Buffer.from(buildCompressedObjStmPdf());
+    const rev3TopLevel = Buffer.from(
+      `\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R /Lang (es-ES) /MarkInfo << /Marked true >> /ViewerPreferences << /DisplayDocTitle true >> /StructTreeRoot 4 0 R >>\nendobj\n` +
+        `5 0 obj\n<< /Type /StructElem /S /H2 /P 4 0 R >>\nendobj\n` +
+        `trailer\n<< /Root 1 0 R >>\n%%EOF\n`,
+      "latin1"
+    );
+    const pdfB = new Uint8Array(Buffer.concat([baseCompressed, rev3TopLevel]));
+    const resB = await inspectPdfUa(pdfB, "incremental_toplevel_over_objstm.pdf");
+    assert.equal(resB.ok, true);
+    assert.equal(resB.metrics.docLang, "es-ES");
+    assert.equal(resB.metrics.tagCounts.H2, 1);
+    assert.equal(resB.metrics.tagCounts.H1 || 0, 0);
+  });
+
   console.log(`\nALL ${passed}/${passed} INSPECTOR TESTS PASSED!`);
 }
 
